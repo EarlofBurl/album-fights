@@ -79,6 +79,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $idxA = null;
 $idxB = null;
 $total = count($albums);
+$rankByIndex = [];
+
+if ($total > 0) {
+    $rankedIndexes = array_keys($albums);
+    usort($rankedIndexes, function($a, $b) use ($albums) {
+        return $albums[$b]['Elo'] <=> $albums[$a]['Elo'];
+    });
+
+    foreach ($rankedIndexes as $position => $originalIndex) {
+        $rankByIndex[$originalIndex] = $position + 1;
+    }
+}
 
 if ($total >= 2) {
     if (isset($_SESSION['keep_artist'], $_SESSION['keep_album'])) {
@@ -153,6 +165,8 @@ if ($total >= 2) {
     $albumB = $albums[$idxB];
     $albumA['OriginalIndex'] = $idxA;
     $albumB['OriginalIndex'] = $idxB;
+    $albumA['Rank'] = $rankByIndex[$idxA] ?? null;
+    $albumB['Rank'] = $rankByIndex[$idxB] ?? null;
 
     $infoA = getAlbumData($albumA['Artist'], $albumA['Album']);
     $infoB = getAlbumData($albumB['Artist'], $albumB['Album']);
@@ -178,6 +192,7 @@ require_once 'includes/header.php';
 <?php if (empty($review_text) && $total >= 2): ?>
     <div class="duel-container">
         <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); display: flex; flex-direction: column;">
+            <div class="duel-rank-badge">#<?= $albumA['Rank'] ?></div>
             <h2 style="color: var(--accent); margin-top: 0;"><?= htmlspecialchars($albumA['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumA['Album']) ?></h3>
             
@@ -242,6 +257,7 @@ require_once 'includes/header.php';
         </div>
 
         <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); display: flex; flex-direction: column;">
+            <div class="duel-rank-badge">#<?= $albumB['Rank'] ?></div>
             <h2 style="color: var(--accent); margin-top: 0;"><?= htmlspecialchars($albumB['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumB['Album']) ?></h3>
             
