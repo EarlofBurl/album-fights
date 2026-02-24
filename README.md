@@ -20,25 +20,33 @@ Inspired by Flickchart, but built for music nerds.
 
 ---
 
-## 📸 Screenshots
+## 📸 Interface Preview
 
-> Put images in `docs/screenshots/` and update the filenames below.
+### 🥊 Duel Experience
 
-| Duel view | Rankings |
-|---|---|
-| ![Duel screen](docs/screenshots/duel.png) | ![Rankings screen](docs/screenshots/rankings.png) |
+<p align="center">
+  <img src="docs/screenshots/duel.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
+  <img src="docs/screenshots/rankings.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
+</p>
 
-| Settings | Import |
-|---|---|
-| ![Settings screen](docs/screenshots/settings.png) | ![Import screen](docs/screenshots/import.png) |
+<p align="center">
+  <em>Face-offs that define your taste • A ranking system that remembers everything</em>
+</p>
+
+<br>
 
 ---
 
-## 📊 Demo (GIF)
+### ⚙️ Control Center
 
-> Put the GIF in `docs/demo/` (or anywhere you like) and update the path below.
+<p align="center">
+  <img src="docs/screenshots/settings.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
+  <img src="docs/screenshots/import.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
+</p>
 
-![Demo GIF](docs/demo/demo.gif)
+<p align="center">
+  <em>Fine-tune your engine • Import your listening history • Let the AI judge you</em>
+</p>
 
 ---
 
