@@ -517,7 +517,7 @@ require_once 'includes/header.php';
     <div style="display: flex; gap: 20px; margin-bottom: 30px;">
         <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
             <h3>🎯 API Import (Last.fm + ListenBrainz)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Wähle Quelle und Modus: letzte 400 Scrobbles oder Top 100/200/500/1000 Alben.</p>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Choose source and mode: last 400 scrobbles/listens or Top 100/200/500/1000 albums.</p>
             <form method="POST">
                 <input type="hidden" name="action" value="fetch_candidates">
                 <select name="source" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
@@ -526,8 +526,8 @@ require_once 'includes/header.php';
                 </select>
                 <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
                 <select name="fetch_mode" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                    <option value="recent">Letzte 400 Scrobbles</option>
-                    <option value="top">Top-Alben importieren</option>
+                    <option value="recent">Last 400 scrobbles/listens</option>
+                    <option value="top">Import top albums</option>
                 </select>
                 <select name="top_limit" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
                     <option value="100">Top 100</option>
