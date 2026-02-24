@@ -5,7 +5,7 @@ services:
     image: earlofburl/album-fights:latest  # Change 'earlofburl' to your docker username later
     container_name: album-fights
     ports:
-      - "8989:80"
+      - "8282:80"
     volumes:
       - ./data:/var/www/html/data
       - ./cache:/var/www/html/cache
