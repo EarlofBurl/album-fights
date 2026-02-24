@@ -116,11 +116,27 @@ function triggerNerdComment($recentPicksText) {
     return callAIProvider($prompt);
 }
 
-function triggerBootcampComment($top50Text) {
+function triggerBootcampComment($top50Text, $top50History = [], $commentHistory = []) {
     global $APP_SETTINGS;
+
+    $historyBlock = "";
+    if (!empty($top50History)) {
+        $historyBlock .= "Previous Top 50 snapshots (oldest to newest):\n";
+        foreach ($top50History as $index => $snapshot) {
+            $historyBlock .= "--- Snapshot " . ($index + 1) . " ---\n" . $snapshot . "\n\n";
+        }
+    }
+
+    if (!empty($commentHistory)) {
+        $historyBlock .= "Your last critic comments (oldest to newest):\n";
+        foreach ($commentHistory as $index => $comment) {
+            $historyBlock .= "--- Comment " . ($index + 1) . " ---\n" . $comment . "\n\n";
+        }
+    }
     
     $prompt = "You are a highly opinionated, incredibly knowledgeable, and slightly snobbish music critic (think Anthony Fantano or a seasoned Pitchfork reviewer). You are reviewing my current Top 50 albums list:\n\n" . $top50Text . "\n\n";
-    $prompt .= "Analyze this Top 50 list in earnest. Drop any military or drill instructor vibes; you are a pure, passionate music nerd. Point out the genuinely great picks and praise the highlights, but don't hold back on snobbish critiques of the basic, overrated, or questionable choices. Suggest superior alternatives (e.g., 'how can you listen to X when Y exists?'). Point out completely missing genres, glaring omissions of essential classics, or extreme biases towards specific eras or artists. Give me a definitive, witty, and analytical assessment of my taste. Max 350 words. English.";
+    $prompt .= $historyBlock;
+    $prompt .= "Analyze this Top 50 list in earnest. Use the history to comment on taste evolution and recurring patterns over time. Drop any military or drill instructor vibes; you are a pure, passionate music nerd. Keep the tone snobbish, arrogant-but-kind, witty, and analytical. Point out the genuinely great picks and praise the highlights, but don't hold back on critiques of basic, overrated, or questionable choices. Suggest superior alternatives (e.g., 'how can you listen to X when Y exists?'). Point out missing genres, glaring omissions of essential classics, and extreme biases toward specific eras or artists. Include at least one concrete comparison to earlier snapshots (for example: an artist appearing less often now). End with a Fantano-style overall score from 1 to 10 in a clear format like 'Score: 7/10'. Max 380 words. English only.";
 
     return callAIProvider($prompt);
 }
