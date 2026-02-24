@@ -3,6 +3,7 @@ require_once 'includes/config.php';
 require_once 'includes/data_manager.php';
 
 $lastfm_user = $_SESSION['lastfm_user'] ?? '';
+$listenbrainz_user = $_SESSION['listenbrainz_user'] ?? '';
 $candidates = [];
 $message = '';
 $candidateSource = '';
@@ -35,6 +36,206 @@ function decodeCandidatesState($encoded) {
 
 function getCandidateKey($candidate) {
     return strtolower(trim($candidate['artist']) . '|||' . trim($candidate['album']));
+}
+
+function fetchJson($url, $headers = []) {
+    $opts = ['http' => ['method' => 'GET', 'timeout' => 20]];
+    if (!empty($headers)) {
+        $opts['http']['header'] = implode("\r\n", $headers) . "\r\n";
+    }
+
+    $response = @file_get_contents($url, false, stream_context_create($opts));
+    if ($response === false) {
+        return null;
+    }
+
+    $decoded = json_decode($response, true);
+    return is_array($decoded) ? $decoded : null;
+}
+
+function buildExistingAlbumsLookup() {
+    $existingAlbums = [];
+    $eloData = loadCsv(FILE_ELO);
+    $queueData = loadCsv(FILE_QUEUE);
+
+    foreach (array_merge($eloData, $queueData) as $row) {
+        $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
+        $existingAlbums[$key] = true;
+    }
+
+    return $existingAlbums;
+}
+
+function fetchLastfmTopAlbums($username, $limit) {
+    if (empty($username) || empty(LASTFM_API_KEY)) {
+        return [];
+    }
+
+    $url = "http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=" . urlencode($username) . "&api_key=" . LASTFM_API_KEY . "&format=json&limit=" . (int)$limit;
+    $data = fetchJson($url);
+    if (!isset($data['topalbums']['album']) || !is_array($data['topalbums']['album'])) {
+        return [];
+    }
+
+    $results = [];
+    foreach ($data['topalbums']['album'] as $alb) {
+        $artist = trim($alb['artist']['name'] ?? '');
+        $album = trim($alb['name'] ?? '');
+        $plays = (int)($alb['playcount'] ?? 0);
+        if (!empty($artist) && !empty($album)) {
+            $results[] = ['artist' => $artist, 'album' => $album, 'playcount' => $plays];
+        }
+    }
+
+    return $results;
+}
+
+function fetchListenbrainzTopAlbums($username, $limit) {
+    if (empty($username)) {
+        return [];
+    }
+
+    $headers = ['Accept: application/json'];
+    if (!empty(LISTENBRAINZ_API_KEY)) {
+        $headers[] = 'Authorization: Token ' . LISTENBRAINZ_API_KEY;
+    }
+
+    $url = 'https://api.listenbrainz.org/1/stats/user/' . rawurlencode($username) . '/releases?range=all_time&count=' . (int)$limit;
+    $data = fetchJson($url, $headers);
+    if (!isset($data['payload']['releases']) || !is_array($data['payload']['releases'])) {
+        return [];
+    }
+
+    $results = [];
+    foreach ($data['payload']['releases'] as $release) {
+        $artist = trim($release['artist_name'] ?? '');
+        $album = trim($release['release_name'] ?? '');
+        $plays = (int)($release['listen_count'] ?? 0);
+        if (!empty($artist) && !empty($album)) {
+            $results[] = ['artist' => $artist, 'album' => $album, 'playcount' => $plays];
+        }
+    }
+
+    return $results;
+}
+
+function fetchLastfmRecentAlbumCounts($username, $targetTracks = 400) {
+    if (empty($username) || empty(LASTFM_API_KEY)) {
+        return [];
+    }
+
+    $albumCounts = [];
+    $pages = (int)ceil($targetTracks / 200);
+
+    for ($page = 1; $page <= $pages; $page++) {
+        $url = 'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=' . urlencode($username) . '&api_key=' . LASTFM_API_KEY . '&format=json&limit=200&page=' . $page;
+        $data = fetchJson($url);
+
+        if (!isset($data['recenttracks']['track'])) {
+            continue;
+        }
+
+        $tracks = $data['recenttracks']['track'];
+        if (isset($tracks['name'])) {
+            $tracks = [$tracks];
+        }
+
+        foreach ($tracks as $track) {
+            if (($track['@attr']['nowplaying'] ?? '') === 'true') {
+                continue;
+            }
+
+            $artist = trim($track['artist']['#text'] ?? $track['artist']['name'] ?? '');
+            $album = trim($track['album']['#text'] ?? '');
+
+            if (!empty($artist) && !empty($album)) {
+                $key = $artist . '|||' . $album;
+                if (!isset($albumCounts[$key])) {
+                    $albumCounts[$key] = 0;
+                }
+                $albumCounts[$key]++;
+            }
+        }
+    }
+
+    return $albumCounts;
+}
+
+function fetchListenbrainzRecentAlbumCounts($username, $targetTracks = 400) {
+    if (empty($username)) {
+        return [];
+    }
+
+    $albumCounts = [];
+    $remaining = $targetTracks;
+    $maxTs = null;
+
+    while ($remaining > 0) {
+        $count = min(100, $remaining);
+        $url = 'https://api.listenbrainz.org/1/user/' . rawurlencode($username) . '/listens?count=' . $count;
+        if ($maxTs !== null) {
+            $url .= '&max_ts=' . $maxTs;
+        }
+
+        $data = fetchJson($url, ['Accept: application/json']);
+        $listens = $data['payload']['listens'] ?? [];
+        if (empty($listens)) {
+            break;
+        }
+
+        $lastTsInBatch = null;
+        foreach ($listens as $listen) {
+            $trackMetadata = $listen['track_metadata'] ?? [];
+            $artist = trim($trackMetadata['artist_name'] ?? '');
+            $album = trim($trackMetadata['release_name'] ?? '');
+
+            if (!empty($artist) && !empty($album)) {
+                $key = $artist . '|||' . $album;
+                if (!isset($albumCounts[$key])) {
+                    $albumCounts[$key] = 0;
+                }
+                $albumCounts[$key]++;
+            }
+
+            $listenTs = $listen['listened_at'] ?? null;
+            if (is_numeric($listenTs)) {
+                $lastTsInBatch = (int)$listenTs;
+            }
+        }
+
+        if ($lastTsInBatch === null) {
+            break;
+        }
+
+        $maxTs = $lastTsInBatch - 1;
+        $remaining -= count($listens);
+
+        if (count($listens) < $count) {
+            break;
+        }
+    }
+
+    return $albumCounts;
+}
+
+function buildCandidatesFromCounts($albumCounts, $existingAlbums, $minPlays) {
+    $candidates = [];
+
+    foreach ($albumCounts as $hash => $playcount) {
+        [$artist, $album] = explode('|||', $hash, 2);
+        $dbKey = strtolower(trim($artist) . '_' . trim($album));
+
+        if (!isset($existingAlbums[$dbKey]) && $playcount >= $minPlays) {
+            $candidates[] = [
+                'artist' => $artist,
+                'album' => $album,
+                'playcount' => $playcount
+            ];
+        }
+    }
+
+    usort($candidates, function($a, $b) { return $b['playcount'] <=> $a['playcount']; });
+    return $candidates;
 }
 
 function importAlbums($selectedCandidates, $destination) {
@@ -101,120 +302,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = $_POST['action'];
 
         if ($action === 'sync_playcounts') {
-            $_SESSION['lastfm_user'] = trim($_POST['username']);
-            $lastfm_user = $_SESSION['lastfm_user'];
+            $source = $_POST['source'] ?? 'lastfm';
+            $username = trim($_POST['username'] ?? '');
 
-            if (!empty($lastfm_user) && !empty(LASTFM_API_KEY)) {
-                $url = "http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=" . urlencode($lastfm_user) . "&api_key=" . LASTFM_API_KEY . "&format=json&limit=1000";
-                $response = @file_get_contents($url);
-
-                if ($response) {
-                    $data = json_decode($response, true);
-                    if (isset($data['topalbums']['album'])) {
-                        $livePlaycounts = [];
-                        foreach ($data['topalbums']['album'] as $alb) {
-                            $key = strtolower(trim($alb['artist']['name']) . '_' . trim($alb['name']));
-                            $livePlaycounts[$key] = (int)$alb['playcount'];
-                        }
-
-                        $updates = 0;
-
-                        $eloData = loadCsv(FILE_ELO);
-                        foreach ($eloData as &$row) {
-                            $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
-                            if (isset($livePlaycounts[$key]) && $livePlaycounts[$key] > $row['Playcount']) {
-                                $row['Playcount'] = $livePlaycounts[$key];
-                                $updates++;
-                            }
-                        }
-                        saveCsv(FILE_ELO, $eloData);
-
-                        $queueData = loadCsv(FILE_QUEUE);
-                        foreach ($queueData as &$row) {
-                            $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
-                            if (isset($livePlaycounts[$key]) && $livePlaycounts[$key] > $row['Playcount']) {
-                                $row['Playcount'] = $livePlaycounts[$key];
-                                $updates++;
-                            }
-                        }
-                        saveCsv(FILE_QUEUE, $queueData);
-
-                        $message = "🔄 Sync complete! Updated the playcounts for <strong>$updates</strong> albums.";
-                    } else {
-                        $message = '❌ Could not parse Last.fm data.';
-                    }
-                } else {
-                    $message = '❌ Error connecting to Last.fm API.';
-                }
+            if ($source === 'listenbrainz') {
+                $_SESSION['listenbrainz_user'] = $username;
+                $listenbrainz_user = $username;
+                $liveAlbums = fetchListenbrainzTopAlbums($username, 1000);
+                $sourceLabel = 'ListenBrainz';
             } else {
-                $message = '❌ Please provide a username and ensure your Last.fm API key is set.';
+                $_SESSION['lastfm_user'] = $username;
+                $lastfm_user = $username;
+                $liveAlbums = fetchLastfmTopAlbums($username, 1000);
+                $sourceLabel = 'Last.fm';
+            }
+
+            if (!empty($liveAlbums)) {
+                $livePlaycounts = [];
+                foreach ($liveAlbums as $alb) {
+                    $key = strtolower(trim($alb['artist']) . '_' . trim($alb['album']));
+                    $livePlaycounts[$key] = (int)$alb['playcount'];
+                }
+
+                $updates = 0;
+                $eloData = loadCsv(FILE_ELO);
+                foreach ($eloData as &$row) {
+                    $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
+                    if (isset($livePlaycounts[$key]) && $livePlaycounts[$key] > $row['Playcount']) {
+                        $row['Playcount'] = $livePlaycounts[$key];
+                        $updates++;
+                    }
+                }
+                saveCsv(FILE_ELO, $eloData);
+
+                $queueData = loadCsv(FILE_QUEUE);
+                foreach ($queueData as &$row) {
+                    $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
+                    if (isset($livePlaycounts[$key]) && $livePlaycounts[$key] > $row['Playcount']) {
+                        $row['Playcount'] = $livePlaycounts[$key];
+                        $updates++;
+                    }
+                }
+                saveCsv(FILE_QUEUE, $queueData);
+
+                $message = "🔄 Sync complete via $sourceLabel! Updated the playcounts for <strong>$updates</strong> albums.";
+            } else {
+                $message = "❌ No top-album data returned from $sourceLabel. Check username/API settings and try again.";
             }
         }
-        elseif ($action === 'set_user') {
-            $_SESSION['lastfm_user'] = trim($_POST['username']);
-            $lastfm_user = $_SESSION['lastfm_user'];
+        elseif ($action === 'fetch_candidates') {
+            $source = $_POST['source'] ?? 'lastfm';
+            $mode = $_POST['fetch_mode'] ?? 'recent';
+            $username = trim($_POST['username'] ?? '');
+            $topLimit = (int)($_POST['top_limit'] ?? 100);
 
-            if (!empty($lastfm_user) && !empty(LASTFM_API_KEY)) {
-                $existingAlbums = [];
-                $eloData = loadCsv(FILE_ELO);
-                $queueData = loadCsv(FILE_QUEUE);
-                $allCurrentData = array_merge($eloData, $queueData);
+            $existingAlbums = buildExistingAlbumsLookup();
+            $sourceLabel = $source === 'listenbrainz' ? 'ListenBrainz' : 'Last.fm';
 
-                foreach ($allCurrentData as $row) {
-                    $key = strtolower(trim($row['Artist']) . '_' . trim($row['Album']));
-                    $existingAlbums[$key] = true;
+            if ($source === 'listenbrainz') {
+                $_SESSION['listenbrainz_user'] = $username;
+                $listenbrainz_user = $username;
+            } else {
+                $_SESSION['lastfm_user'] = $username;
+                $lastfm_user = $username;
+            }
+
+            if ($mode === 'top') {
+                $allowedLimits = [100, 200, 500, 1000];
+                if (!in_array($topLimit, $allowedLimits, true)) {
+                    $topLimit = 100;
                 }
 
-                $recentScrobbles = [];
-                for ($page = 1; $page <= 2; $page++) {
-                    $url = "http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=" . urlencode($lastfm_user) . "&api_key=" . LASTFM_API_KEY . "&format=json&limit=200&page=" . $page;
-                    $response = @file_get_contents($url);
+                $topAlbums = $source === 'listenbrainz'
+                    ? fetchListenbrainzTopAlbums($username, $topLimit)
+                    : fetchLastfmTopAlbums($username, $topLimit);
 
-                    if ($response) {
-                        $data = json_decode($response, true);
-                        if (isset($data['recenttracks']['track'])) {
-                            $tracks = $data['recenttracks']['track'];
-                            if (isset($tracks['name'])) $tracks = [$tracks];
-
-                            foreach ($tracks as $track) {
-                                if (isset($track['@attr']['nowplaying']) && $track['@attr']['nowplaying'] === 'true') continue;
-
-                                $artist = $track['artist']['#text'] ?? $track['artist']['name'] ?? '';
-                                $album = $track['album']['#text'] ?? '';
-
-                                if (!empty($artist) && !empty($album)) {
-                                    $hash = $artist . '|||' . $album;
-                                    if (!isset($recentScrobbles[$hash])) $recentScrobbles[$hash] = 0;
-                                    $recentScrobbles[$hash]++;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                foreach ($recentScrobbles as $hash => $playcount) {
-                    list($artist, $album) = explode('|||', $hash);
-                    $dbKey = strtolower(trim($artist) . '_' . trim($album));
-
-                    if (!isset($existingAlbums[$dbKey]) && $playcount >= $min_plays) {
-                        $candidates[] = [
-                            'artist' => $artist,
-                            'album' => $album,
-                            'playcount' => $playcount
-                        ];
+                foreach ($topAlbums as $album) {
+                    $dbKey = strtolower(trim($album['artist']) . '_' . trim($album['album']));
+                    if (!isset($existingAlbums[$dbKey]) && $album['playcount'] >= $min_plays) {
+                        $candidates[] = $album;
                     }
                 }
 
                 usort($candidates, function($a, $b) { return $b['playcount'] <=> $a['playcount']; });
-                $candidateSource = 'lastfm';
+                $candidateSource = $source;
 
                 if (empty($candidates)) {
-                    $message = "ℹ️ Searched the last 400 scrobbles. No new albums found that meet the minimum criteria ($min_plays plays).";
+                    $message = "ℹ️ Checked Top $topLimit from $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
                 } else {
-                    $message = '✅ Analyzed the last 400 scrobbles and found ' . count($candidates) . ' new candidates!';
+                    $message = "✅ Imported preview from Top $topLimit ($sourceLabel): found " . count($candidates) . ' new candidates!';
                 }
             } else {
-                $message = '❌ Please provide a username and ensure your Last.fm API key is set in Settings.';
+                $recentScrobbles = $source === 'listenbrainz'
+                    ? fetchListenbrainzRecentAlbumCounts($username, 400)
+                    : fetchLastfmRecentAlbumCounts($username, 400);
+
+                $candidates = buildCandidatesFromCounts($recentScrobbles, $existingAlbums, $min_plays);
+                $candidateSource = $source;
+
+                if (empty($candidates)) {
+                    $message = "ℹ️ Searched the last 400 scrobbles via $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
+                } else {
+                    $message = "✅ Analyzed the last 400 scrobbles via $sourceLabel and found " . count($candidates) . ' new candidates!';
+                }
             }
         }
         elseif (in_array($action, ['import_db', 'import_queue', 'import_selected_db', 'import_selected_queue', 'import_all_db', 'import_all_queue'], true)) {
@@ -312,22 +502,40 @@ require_once 'includes/header.php';
 
     <div style="background: #2a2a2a; padding: 20px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 30px; border-left: 5px solid var(--accent);">
         <h3 style="margin-top: 0; color: var(--accent);">🔄 Sync Live Playcounts</h3>
-        <p style="font-size: 0.9rem; color: var(--text-muted);">This will pull your Top 1000 albums from Last.fm and update the playcounts of any matching albums already in your Duel Database and Queue.</p>
+        <p style="font-size: 0.9rem; color: var(--text-muted);">This pulls your Top 1000 albums from Last.fm or ListenBrainz and updates matching playcounts in Duel Database + Queue.</p>
         <form method="POST" style="display: flex; gap: 15px;">
             <input type="hidden" name="action" value="sync_playcounts">
-            <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user) ?>" placeholder="Last.fm Username" style="flex: 1; padding: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+            <select name="source" style="width: 170px; padding: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+                <option value="lastfm">Last.fm</option>
+                <option value="listenbrainz">ListenBrainz</option>
+            </select>
+            <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username" style="flex: 1; padding: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
             <button type="submit" class="btn-small" style="background-color: var(--accent); color: #000; width: 200px; font-weight: bold;">Update Playcounts</button>
         </form>
     </div>
 
     <div style="display: flex; gap: 20px; margin-bottom: 30px;">
         <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-            <h3>🔴 Fetch from Last.fm</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Scans your last 400 scrobbles for albums that meet the minimum scrobble requirement and aren't already in your database.</p>
+            <h3>🎯 API Import (Last.fm + ListenBrainz)</h3>
+            <p style="font-size: 0.8rem; color: var(--text-muted);">Choose source and mode: last 400 scrobbles/listens or Top 100/200/500/1000 albums.</p>
             <form method="POST">
-                <input type="hidden" name="action" value="set_user">
-                <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user) ?>" placeholder="Last.fm Username" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                <button type="submit" class="btn-small" style="background-color: #333; color: #fff; width: 100%;">Analyze Recent Tracks</button>
+                <input type="hidden" name="action" value="fetch_candidates">
+                <select name="source" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+                    <option value="lastfm">Last.fm</option>
+                    <option value="listenbrainz">ListenBrainz</option>
+                </select>
+                <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+                <select name="fetch_mode" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+                    <option value="recent">Last 400 scrobbles/listens</option>
+                    <option value="top">Import top albums</option>
+                </select>
+                <select name="top_limit" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+                    <option value="100">Top 100</option>
+                    <option value="200">Top 200</option>
+                    <option value="500">Top 500</option>
+                    <option value="1000">Top 1000</option>
+                </select>
+                <button type="submit" class="btn-small" style="background-color: #333; color: #fff; width: 100%;">Fetch & Preview</button>
             </form>
         </div>
 
