@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/data_manager.php';
+require_once 'includes/api_manager.php';
 
 $albums = loadCsv(FILE_ELO);
 
@@ -53,9 +54,18 @@ $genreStats = [];
 $decadeStats = [];
 
 foreach ($albums as $a) {
-    $safeName = preg_replace('/[^a-zA-Z0-9_-]/', '_', strtolower("album_" . $a['Artist'] . "_" . $a['Album']));
-    $jsonFile = DIR_CACHE . $safeName . '.json';
-    
+    $cacheBaseName = getAlbumCacheBaseName($a['Artist'], $a['Album']);
+    $jsonFile = DIR_CACHE . $cacheBaseName . '.json';
+
+    // Backward compatibility for old cache naming scheme.
+    if (!file_exists($jsonFile)) {
+        $legacyName = preg_replace('/[^a-zA-Z0-9_-]/', '_', strtolower("album_" . $a['Artist'] . "_" . $a['Album']));
+        $legacyFile = DIR_CACHE . $legacyName . '.json';
+        if (file_exists($legacyFile)) {
+            $jsonFile = $legacyFile;
+        }
+    }
+
     // We only evaluate albums already in the cache (to avoid extreme loading times from APIs)
     if (file_exists($jsonFile)) {
         $info = json_decode(file_get_contents($jsonFile), true);
