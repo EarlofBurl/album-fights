@@ -7,12 +7,16 @@ $albums = loadCsv(FILE_ELO);
 $bootcamp_text = "";
 $last_generated_duels = null;
 $bootcamp_file = DIR_DATA . 'bootcamp_last.json';
+$top50_history = [];
+$comment_history = [];
 
 // Load previous assessment if it exists
 if (file_exists($bootcamp_file)) {
     $saved_data = json_decode(file_get_contents($bootcamp_file), true);
     $bootcamp_text = $saved_data['comment'] ?? "";
     $last_generated_duels = $saved_data['duel_count'] ?? null;
+    $top50_history = $saved_data['top50_history'] ?? [];
+    $comment_history = $saved_data['comment_history'] ?? [];
 }
 
 // Check if an active API Key is provided for the selected AI
@@ -30,17 +34,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         foreach($top50 as $i => $a) {
             $currentText .= ($i+1) . ". " . $a['Artist'] . " - " . $a['Album'] . "\n";
         }
+
+        $history_for_prompt = array_slice($top50_history, -5);
+        $comment_history_for_prompt = array_slice($comment_history, -3);
         
-        $new_text = triggerBootcampComment($currentText);
+        $new_text = triggerBootcampComment($currentText, $history_for_prompt, $comment_history_for_prompt);
         
         if ($new_text) {
             $bootcamp_text = $new_text;
             $last_generated_duels = $_SESSION['duel_count'] ?? 0;
+
+            $top50_history[] = $currentText;
+            $comment_history[] = $bootcamp_text;
+
+            $top50_history = array_slice($top50_history, -5);
+            $comment_history = array_slice($comment_history, -3);
             
             // Save the state to persist the last commentary
             file_put_contents($bootcamp_file, json_encode([
                 'comment' => $bootcamp_text,
                 'duel_count' => $last_generated_duels,
+                'top50_history' => $top50_history,
+                'comment_history' => $comment_history,
                 'timestamp' => time()
             ]));
         }
