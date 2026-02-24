@@ -1,0 +1,11 @@
+# Ignore user data and caches so API keys and personal lists aren't uploaded
+data/*
+cache/*
+
+# Keep the folders themselves in the repo, just not their contents
+!data/.gitkeep
+!cache/.gitkeep
+
+# OS generated files
+.DS_Store
+Thumbs.db
