@@ -1,17 +1,18 @@
 # Use the official PHP + Apache image
 FROM php:8.2-apache
 
-# Install any PHP extensions if needed (usually none for this app, but good to have)
+# Install PHP extensions
 RUN docker-php-ext-install pdo pdo_mysql
 
-# Copy your project files into the web server directory
+# Copy your project files into the container
 COPY . /var/www/html/
 
-# Set permissions so the app can write to the data and cache folders
-# We create them first to ensure they exist with the right owner
-RUN mkdir -p /var/www/html/data /var/www/html/cache \
-    && chown -R www-data:www-data /var/www/html/data /var/www/html/cache \
-    && chmod -R 775 /var/www/html/data /var/www/html/cache
+# Copy the permission-fix script
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Expose port 80
+# Document that this container uses port 80
 EXPOSE 80
+
+# Start the container using our script to fix volumes
+ENTRYPOINT ["entrypoint.sh"]
