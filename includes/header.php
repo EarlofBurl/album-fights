@@ -81,6 +81,24 @@
             color: var(--text-muted); 
             width: 50px; 
         }
+        .duel-rank-badge {
+            align-self: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 62px;
+            padding: 6px 12px;
+            margin: -6px auto 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(187, 134, 252, 0.65);
+            background: rgba(187, 134, 252, 0.14);
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+
         .btn-small {
             padding: 8px 12px;
             border: none;
