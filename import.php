@@ -297,6 +297,8 @@ function importAlbums($selectedCandidates, $destination) {
 // ==========================================
 // HANDLE ACTIONS
 // ==========================================
+$messageType = 'success'; // Default message style
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
@@ -348,6 +350,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "🔄 Sync complete via $sourceLabel! Updated the playcounts for <strong>$updates</strong> albums.";
             } else {
                 $message = "❌ No top-album data returned from $sourceLabel. Check username/API settings and try again.";
+                $messageType = 'error';
             }
         }
         elseif ($action === 'fetch_candidates') {
@@ -389,6 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (empty($candidates)) {
                     $message = "ℹ️ Checked Top $topLimit from $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
+                    $messageType = 'info';
                 } else {
                     $message = "✅ Imported preview from Top $topLimit ($sourceLabel): found " . count($candidates) . ' new candidates!';
                 }
@@ -402,6 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if (empty($candidates)) {
                     $message = "ℹ️ Searched the last 400 scrobbles via $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
+                    $messageType = 'info';
                 } else {
                     $message = "✅ Analyzed the last 400 scrobbles via $sourceLabel and found " . count($candidates) . ' new candidates!';
                 }
@@ -444,6 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (empty($selectedCandidates)) {
                 $message = 'ℹ️ No albums were selected.';
+                $messageType = 'info';
             } elseif ($destination === 'db') {
                 $message = "✅ Imported <strong>$imported</strong> album(s) into the duel ranking.";
             } else {
@@ -477,6 +483,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } else {
                 $message = '❌ Error uploading the CSV file.';
+                $messageType = 'error';
             }
         }
     }
@@ -487,111 +494,170 @@ $candidatesState = encodeCandidatesState($candidates, $candidateSource);
 require_once 'includes/header.php';
 ?>
 
-<div style="width: 100%; max-width: 1100px; margin: 0 auto;">
+<style>
+    /* Scoped CSS for the Import Page */
+    .import-container { max-width: 1100px; margin: 0 auto; padding: 20px 0; }
+    
+    /* Cards */
+    .import-card { background: var(--card-bg, #222); border: 1px solid var(--border, #333); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .import-card.sync-card { border-left: 5px solid var(--accent, #b088ff); }
+    .import-card h3 { margin-top: 0; margin-bottom: 8px; }
+    .import-card p { font-size: 0.9rem; color: var(--text-muted, #999); margin-top: 0; margin-bottom: 20px; }
+    
+    /* Grid Layouts - Fixed for equal height and bottom-aligned buttons */
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 30px; align-items: stretch; }
+    .grid-2 .import-card { display: flex; flex-direction: column; margin-bottom: 0; }
+    .grid-2 .import-card form { flex: 1; display: flex; flex-direction: column; }
+    .grid-2 .import-card .btn-full { margin-top: auto; }
+    
+    .flex-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+    
+    /* Form Controls */
+    .form-group { margin-bottom: 15px; }
+    .form-control { width: 100%; padding: 12px; background: #111; color: #fff; border: 1px solid #333; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
+    .form-control:focus { border-color: var(--accent, #b088ff); outline: none; }
+    input[type="file"].form-control { padding: 9px; }
+    
+    /* Buttons */
+    .btn { padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; text-align: center; font-size: 0.95rem; }
+    .btn:hover { opacity: 0.8; }
+    .btn-accent { background: var(--accent, #b088ff); color: #000; }
+    .btn-dark { background: #333; color: #fff; }
+    .btn-success { background: #2ecc71; color: #000; }
+    .btn-full { width: 100%; display: block; }
+    
+    /* Alerts */
+    .alert { padding: 15px; border-radius: 8px; margin-bottom: 24px; font-weight: bold; }
+    .alert-success { background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.3); }
+    .alert-error { background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); }
+    .alert-info { background: rgba(52, 152, 219, 0.15); color: #3498db; border: 1px solid rgba(52, 152, 219, 0.3); }
+
+    /* Candidates Table */
+    .table-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; margin-top: 10px; }
+    .candidates-table { width: 100%; border-collapse: collapse; background: var(--card-bg, #222); border-radius: 8px; overflow: hidden; font-size: 0.95rem; }
+    .candidates-table th, .candidates-table td { padding: 14px; text-align: left; border-bottom: 1px solid var(--border, #333); }
+    .candidates-table th { background: #1a1a1a; font-weight: bold; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; }
+    .candidates-table th.center, .candidates-table td.center { text-align: center; }
+    .candidates-table tr:last-child td { border-bottom: none; }
+    .candidates-table td.artist { color: var(--accent, #b088ff); font-weight: bold; }
+    .table-actions { display: flex; gap: 10px; justify-content: center; }
+    .table-actions form { margin: 0; }
+</style>
+
+<div class="import-container">
     <h2 style="margin-top: 0;">📥 Import & Maintenance</h2>
-    <p style="color: var(--text-muted);">
+    <p style="color: var(--text-muted); margin-bottom: 24px;">
         Active Rules: Minimum <strong><?= $min_plays ?> Scrobbles</strong> required.
         (Changeable in <a href="settings.php" style="color: var(--accent);">Settings</a>).
     </p>
 
     <?php if ($message): ?>
-        <div style="background: #4CAF50; color: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; font-weight: bold;">
+        <div class="alert alert-<?= $messageType ?>">
             <?= $message ?>
         </div>
     <?php endif; ?>
 
-    <div style="background: #2a2a2a; padding: 20px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 30px; border-left: 5px solid var(--accent);">
-        <h3 style="margin-top: 0; color: var(--accent);">🔄 Sync Live Playcounts</h3>
-        <p style="font-size: 0.9rem; color: var(--text-muted);">This pulls your Top 1000 albums from Last.fm or ListenBrainz and updates matching playcounts in Duel Database + Queue.</p>
-        <form method="POST" style="display: flex; gap: 15px;">
+    <div class="import-card sync-card">
+        <h3 style="color: var(--accent);">🔄 Sync Live Playcounts</h3>
+        <p>This pulls your Top 1000 albums from Last.fm or ListenBrainz and updates matching playcounts in Duel Database + Queue.</p>
+        <form method="POST" class="flex-row">
             <input type="hidden" name="action" value="sync_playcounts">
-            <select name="source" style="width: 170px; padding: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
+            <select name="source" class="form-control" style="flex: 0 0 170px;">
                 <option value="lastfm">Last.fm</option>
                 <option value="listenbrainz">ListenBrainz</option>
             </select>
-            <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username" style="flex: 1; padding: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-            <button type="submit" class="btn-small" style="background-color: var(--accent); color: #000; width: 200px; font-weight: bold;">Update Playcounts</button>
+            <input type="text" name="username" class="form-control" style="flex: 1;" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username">
+            <button type="submit" class="btn btn-accent" style="flex: 0 0 200px;">Update Playcounts</button>
         </form>
     </div>
 
-    <div style="display: flex; gap: 20px; margin-bottom: 30px;">
-        <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-            <h3>🎯 API Import (Last.fm + ListenBrainz)</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Choose source and mode: last 400 scrobbles/listens or Top 100/200/500/1000 albums.</p>
+    <div class="grid-2">
+        <div class="import-card">
+            <h3>🎯 API Import</h3>
+            <p>Choose source and mode: last 400 scrobbles/listens or Top albums.</p>
             <form method="POST">
                 <input type="hidden" name="action" value="fetch_candidates">
-                <select name="source" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                    <option value="lastfm">Last.fm</option>
-                    <option value="listenbrainz">ListenBrainz</option>
-                </select>
-                <input type="text" name="username" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                <select name="fetch_mode" style="width: 100%; padding: 10px; margin-bottom: 10px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                    <option value="recent">Last 400 scrobbles/listens</option>
-                    <option value="top">Import top albums</option>
-                </select>
-                <select name="top_limit" style="width: 100%; padding: 10px; margin-bottom: 15px; background: #111; color: #fff; border: 1px solid #333; border-radius: 5px;">
-                    <option value="100">Top 100</option>
-                    <option value="200">Top 200</option>
-                    <option value="500">Top 500</option>
-                    <option value="1000">Top 1000</option>
-                </select>
-                <button type="submit" class="btn-small" style="background-color: #333; color: #fff; width: 100%;">Fetch & Preview</button>
+                <div class="form-group">
+                    <select name="source" class="form-control">
+                        <option value="lastfm">Last.fm</option>
+                        <option value="listenbrainz">ListenBrainz</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username">
+                </div>
+                <div class="form-group flex-row">
+                    <select name="fetch_mode" class="form-control" style="flex: 1;">
+                        <option value="recent">Last 400 scrobbles</option>
+                        <option value="top">Top albums</option>
+                    </select>
+                    <select name="top_limit" class="form-control" style="flex: 0 0 120px;">
+                        <option value="100">Top 100</option>
+                        <option value="200">Top 200</option>
+                        <option value="500">Top 500</option>
+                        <option value="1000">Top 1000</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-dark btn-full">Fetch & Preview</button>
             </form>
         </div>
 
-        <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
+        <div class="import-card">
             <h3>📄 Upload CSV List</h3>
-            <p style="font-size: 0.8rem; color: var(--text-muted);">Expected Format: <code>Artist, Album, Playcount</code>. You will get a full preview first.</p>
+            <p>Expected Format: <code>Artist, Album, Playcount</code>. Full preview first.</p>
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="upload_csv">
-                <input type="file" name="csv_file" accept=".csv" style="width: 100%; padding: 10px; margin-bottom: 15px; color: #fff; border: 1px solid #333; border-radius: 5px; background: #111;">
-                <button type="submit" class="btn-small" style="background-color: #4CAF50; color: white; width: 100%;">Upload & Preview CSV</button>
+                <div class="form-group">
+                    <input type="file" name="csv_file" accept=".csv" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-success btn-full">Upload & Preview CSV</button>
             </form>
         </div>
     </div>
 
     <?php if (!empty($candidates)): ?>
-        <h3 style="margin-top: 30px;">🔍 Found Candidates (<?= count($candidates) ?>)</h3>
-
-        <form method="POST" id="bulk-import-form" style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px;">
+        <h3 style="margin-top: 40px; margin-bottom: 5px;">🔍 Found Candidates (<?= count($candidates) ?>)</h3>
+        
+        <form method="POST" id="bulk-import-form" class="table-toolbar">
             <input type="hidden" name="candidates_state" value="<?= htmlspecialchars($candidatesState) ?>">
-            <button type="submit" name="action" value="import_selected_db" class="btn-small" style="background-color: var(--accent); color: #000;">➕ Import Selected to DB</button>
-            <button type="submit" name="action" value="import_selected_queue" class="btn-small" style="background-color: #333; color: #fff;">🎧 Import Selected to Queue</button>
-            <button type="submit" name="action" value="import_all_db" class="btn-small" style="background-color: #2ecc71; color: #000; font-weight: bold;">✅ Import ALL to DB</button>
-            <button type="submit" name="action" value="import_all_queue" class="btn-small" style="background-color: #4a4a4a; color: #fff;">🎶 Import ALL to Queue</button>
+            <button type="submit" name="action" value="import_selected_db" class="btn btn-accent">➕ Import Selected to DB</button>
+            <button type="submit" name="action" value="import_selected_queue" class="btn btn-dark">🎧 Import Selected to Queue</button>
+            <button type="submit" name="action" value="import_all_db" class="btn btn-success">✅ Import ALL to DB</button>
         </form>
 
-        <table class="top-list" style="width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: 8px; overflow: hidden;">
+        <table class="candidates-table">
             <thead>
                 <tr>
-                    <th style="padding: 12px; text-align: center; border-bottom: 1px solid var(--border); width: 50px;"><input type="checkbox" id="select-all-candidates"></th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border);">Artist</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border);">Album</th>
-                    <th style="padding: 12px; text-align: left; border-bottom: 1px solid var(--border);">Plays</th>
-                    <th style="padding: 12px; text-align: center; border-bottom: 1px solid var(--border);">Actions</th>
+                    <th class="center" style="width: 50px;"><input type="checkbox" id="select-all-candidates"></th>
+                    <th>Artist</th>
+                    <th>Album</th>
+                    <th>Plays</th>
+                    <th class="center">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <?php foreach ($candidates as $album): ?>
                     <?php $candidateKey = getCandidateKey($album); ?>
                     <tr>
-                        <td style="padding: 12px; border-bottom: 1px solid var(--border); text-align: center;"><input type="checkbox" name="selected_candidates[]" value="<?= htmlspecialchars($candidateKey) ?>" form="bulk-import-form" class="candidate-checkbox"></td>
-                        <td style="padding: 12px; border-bottom: 1px solid var(--border); font-weight: bold; color: var(--accent);"><?= htmlspecialchars($album['artist']) ?></td>
-                        <td style="padding: 12px; border-bottom: 1px solid var(--border);"><?= htmlspecialchars($album['album']) ?></td>
-                        <td style="padding: 12px; border-bottom: 1px solid var(--border);"><?= (int)$album['playcount'] ?></td>
-                        <td style="padding: 12px; border-bottom: 1px solid var(--border);">
-                            <div style="display: flex; gap: 10px; justify-content: center;">
-                                <form method="POST" style="margin: 0;">
+                        <td class="center">
+                            <input type="checkbox" name="selected_candidates[]" value="<?= htmlspecialchars($candidateKey) ?>" form="bulk-import-form" class="candidate-checkbox">
+                        </td>
+                        <td class="artist"><?= htmlspecialchars($album['artist']) ?></td>
+                        <td><?= htmlspecialchars($album['album']) ?></td>
+                        <td><?= (int)$album['playcount'] ?></td>
+                        <td>
+                            <div class="table-actions">
+                                <form method="POST">
                                     <input type="hidden" name="action" value="import_db">
                                     <input type="hidden" name="candidate_key" value="<?= htmlspecialchars($candidateKey) ?>">
                                     <input type="hidden" name="candidates_state" value="<?= htmlspecialchars($candidatesState) ?>">
-                                    <button type="submit" class="btn-small" style="background-color: var(--accent); color: #000; width: 100px;">➕ To DB</button>
+                                    <button type="submit" class="btn btn-accent" style="padding: 8px 12px; font-size: 0.85rem;">➕ DB</button>
                                 </form>
-                                <form method="POST" style="margin: 0;">
+                                <form method="POST">
                                     <input type="hidden" name="action" value="import_queue">
                                     <input type="hidden" name="candidate_key" value="<?= htmlspecialchars($candidateKey) ?>">
                                     <input type="hidden" name="candidates_state" value="<?= htmlspecialchars($candidatesState) ?>">
-                                    <button type="submit" class="btn-small" style="background-color: #333; color: #fff; width: 100px;">🎧 To Queue</button>
+                                    <button type="submit" class="btn btn-dark" style="padding: 8px 12px; font-size: 0.85rem;">🎧 Queue</button>
                                 </form>
                             </div>
                         </td>
