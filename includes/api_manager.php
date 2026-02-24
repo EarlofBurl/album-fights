@@ -1,12 +1,16 @@
 <?php
 require_once 'config.php';
 
-function getAlbumData($artist, $album) {
-    global $APP_SETTINGS;
-    
+function getAlbumCacheBaseName($artist, $album) {
     // We use an MD5 hash so filenames never exceed the OS 255-character limit
     $hash = md5(strtolower($artist . "_" . $album));
-    $safeName = "album_" . $hash;
+    return "album_" . $hash;
+}
+
+function getAlbumData($artist, $album) {
+    global $APP_SETTINGS;
+
+    $safeName = getAlbumCacheBaseName($artist, $album);
     
     $jsonFile = DIR_CACHE . $safeName . '.json';
     $imgFile = DIR_CACHE . $safeName . '.jpg';
