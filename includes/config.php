@@ -20,7 +20,15 @@ $defaultSettings = [
     'gemini_model' => 'gemini-3-flash-preview',
     'openai_model' => 'gpt-4o-mini',
     'nerd_comments_enabled' => true,
-    'import_min_plays' => 8
+    'import_min_plays' => 8,
+    'duel_category_weights' => [
+        'top_25_vs' => 20,
+        'top_50_vs' => 20,
+        'top_100_vs' => 20,
+        'playcount_gt_20' => 15,
+        'duel_counter_zero' => 15,
+        'random' => 10
+    ]
 ];
 
 // Load settings or create new
