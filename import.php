@@ -4,6 +4,7 @@ require_once 'includes/data_manager.php';
 
 $lastfm_user = $_SESSION['lastfm_user'] ?? '';
 $listenbrainz_user = $_SESSION['listenbrainz_user'] ?? ($APP_SETTINGS['listenbrainz_username'] ?? '');
+$subsonic_user = $_SESSION['subsonic_user'] ?? ($APP_SETTINGS['subsonic_username'] ?? '');
 $candidates = [];
 $message = '';
 $candidateSource = '';
@@ -14,6 +15,10 @@ $bundledBestAlbumsCsv = __DIR__ . '/1000_best_albums.csv';
 
 if (empty($_SESSION['listenbrainz_user']) && !empty($APP_SETTINGS['listenbrainz_username'])) {
     $_SESSION['listenbrainz_user'] = $APP_SETTINGS['listenbrainz_username'];
+}
+
+if (empty($_SESSION['subsonic_user']) && !empty($APP_SETTINGS['subsonic_username'])) {
+    $_SESSION['subsonic_user'] = $APP_SETTINGS['subsonic_username'];
 }
 
 function encodeCandidatesState($candidates, $source = '') {
@@ -61,6 +66,170 @@ function fetchJson($url, $headers = []) {
 
     $decoded = json_decode($response, true);
     return is_array($decoded) ? $decoded : null;
+}
+
+
+function getSubsonicConfig() {
+    global $APP_SETTINGS;
+
+    $baseUrl = rtrim(trim((string)($APP_SETTINGS['subsonic_base_url'] ?? '')), '/');
+    $username = trim((string)($APP_SETTINGS['subsonic_username'] ?? ''));
+    $password = trim((string)($APP_SETTINGS['subsonic_password'] ?? ''));
+
+    if ($baseUrl === '' || $username === '' || $password === '') {
+        return null;
+    }
+
+    return [
+        'base_url' => $baseUrl,
+        'username' => $username,
+        'password' => $password
+    ];
+}
+
+function normalizeSubsonicArray($value) {
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $isAssoc = array_keys($value) !== range(0, count($value) - 1);
+    return $isAssoc ? [$value] : $value;
+}
+
+function subsonicApiRequest($method, $params = []) {
+    $cfg = getSubsonicConfig();
+    if ($cfg === null) {
+        return null;
+    }
+
+    $salt = bin2hex(random_bytes(6));
+    $query = array_merge([
+        'u' => $cfg['username'],
+        't' => md5($cfg['password'] . $salt),
+        's' => $salt,
+        'v' => '1.16.1',
+        'c' => 'albumfights',
+        'f' => 'json'
+    ], $params);
+
+    $url = $cfg['base_url'] . '/rest/' . $method . '.view?' . http_build_query($query);
+    $data = fetchJson($url);
+
+    if (!is_array($data) || !isset($data['subsonic-response'])) {
+        return null;
+    }
+
+    $response = $data['subsonic-response'];
+    if (($response['status'] ?? 'failed') !== 'ok') {
+        return null;
+    }
+
+    return $response;
+}
+
+function fetchSubsonicAlbumList($type, $limit) {
+    $results = [];
+    $offset = 0;
+    $pageSize = 500;
+
+    while (count($results) < $limit) {
+        $size = min($pageSize, $limit - count($results));
+        $response = subsonicApiRequest('getAlbumList2', [
+            'type' => $type,
+            'size' => $size,
+            'offset' => $offset
+        ]);
+
+        if (!is_array($response)) {
+            break;
+        }
+
+        $albums = normalizeSubsonicArray($response['albumList2']['album'] ?? []);
+        if (empty($albums)) {
+            break;
+        }
+
+        foreach ($albums as $album) {
+            $artist = trim((string)($album['artist'] ?? ''));
+            $albumName = trim((string)($album['name'] ?? ''));
+            if ($artist === '' || $albumName === '') {
+                continue;
+            }
+
+            $results[] = [
+                'artist' => $artist,
+                'album' => $albumName,
+                'playcount' => max(1, (int)($album['playCount'] ?? 0))
+            ];
+        }
+
+        if (count($albums) < $size) {
+            break;
+        }
+
+        $offset += $size;
+    }
+
+    return array_slice($results, 0, $limit);
+}
+
+function fetchSubsonicStarredAlbums($limit) {
+    $response = subsonicApiRequest('getStarred2');
+    if (!is_array($response)) {
+        return [];
+    }
+
+    $albums = normalizeSubsonicArray($response['starred2']['album'] ?? []);
+    $results = [];
+
+    foreach ($albums as $album) {
+        $artist = trim((string)($album['artist'] ?? ''));
+        $albumName = trim((string)($album['name'] ?? ''));
+        if ($artist === '' || $albumName === '') {
+            continue;
+        }
+
+        $results[] = [
+            'artist' => $artist,
+            'album' => $albumName,
+            'playcount' => 1
+        ];
+    }
+
+    return array_slice($results, 0, $limit);
+}
+
+function buildCandidatesFromAlbumRows($albums, $existingAlbums, $minPlays, $enforceMinPlays = true, $defaultPlaycount = 1) {
+    $candidates = [];
+
+    foreach ($albums as $album) {
+        $artist = trim((string)($album['artist'] ?? ''));
+        $albumName = trim((string)($album['album'] ?? ''));
+        $playcount = (int)($album['playcount'] ?? $defaultPlaycount);
+        $playcount = max(1, $playcount);
+
+        if ($artist === '' || $albumName === '') {
+            continue;
+        }
+
+        $dbKey = strtolower($artist . '_' . $albumName);
+        if (isset($existingAlbums[$dbKey])) {
+            continue;
+        }
+
+        if ($enforceMinPlays && $playcount < $minPlays) {
+            continue;
+        }
+
+        $candidates[] = [
+            'artist' => $artist,
+            'album' => $albumName,
+            'playcount' => $playcount
+        ];
+    }
+
+    usort($candidates, function($a, $b) { return $b['playcount'] <=> $a['playcount']; });
+    return $candidates;
 }
 
 function buildExistingAlbumsLookup() {
@@ -348,6 +517,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $listenbrainz_user = $username;
                 $liveAlbums = fetchListenbrainzTopAlbums($username, 1000);
                 $sourceLabel = 'ListenBrainz';
+            } elseif ($source === 'subsonic') {
+                $_SESSION['subsonic_user'] = $username;
+                $subsonic_user = $username;
+                $liveAlbums = fetchSubsonicAlbumList('frequent', 1000);
+                $sourceLabel = 'Navidrome/Subsonic';
             } else {
                 $_SESSION['lastfm_user'] = $username;
                 $lastfm_user = $username;
@@ -396,11 +570,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $topLimit = (int)($_POST['top_limit'] ?? 100);
 
             $existingAlbums = buildExistingAlbumsLookup();
-            $sourceLabel = $source === 'listenbrainz' ? 'ListenBrainz' : 'Last.fm';
+            $sourceLabel = 'Last.fm';
 
             if ($source === 'listenbrainz') {
+                $sourceLabel = 'ListenBrainz';
                 $_SESSION['listenbrainz_user'] = $username;
                 $listenbrainz_user = $username;
+            } elseif ($source === 'subsonic') {
+                $sourceLabel = 'Navidrome/Subsonic';
+                $_SESSION['subsonic_user'] = $username;
+                $subsonic_user = $username;
             } else {
                 $_SESSION['lastfm_user'] = $username;
                 $lastfm_user = $username;
@@ -412,18 +591,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $topLimit = 100;
                 }
 
-                $topAlbums = $source === 'listenbrainz'
-                    ? fetchListenbrainzTopAlbums($username, $topLimit)
-                    : fetchLastfmTopAlbums($username, $topLimit);
-
-                foreach ($topAlbums as $album) {
-                    $dbKey = strtolower(trim($album['artist']) . '_' . trim($album['album']));
-                    if (!isset($existingAlbums[$dbKey]) && $album['playcount'] >= $min_plays) {
-                        $candidates[] = $album;
-                    }
+                if ($source === 'listenbrainz') {
+                    $topAlbums = fetchListenbrainzTopAlbums($username, $topLimit);
+                } elseif ($source === 'subsonic') {
+                    $topAlbums = fetchSubsonicAlbumList('frequent', $topLimit);
+                } else {
+                    $topAlbums = fetchLastfmTopAlbums($username, $topLimit);
                 }
 
-                usort($candidates, function($a, $b) { return $b['playcount'] <=> $a['playcount']; });
+                $candidates = buildCandidatesFromAlbumRows($topAlbums, $existingAlbums, $min_plays, true, $min_plays);
                 $candidateSource = $source;
 
                 if (empty($candidates)) {
@@ -433,18 +609,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message = "✅ Imported preview from Top $topLimit ($sourceLabel): found " . count($candidates) . ' new candidates!';
                 }
             } else {
-                $recentScrobbles = $source === 'listenbrainz'
-                    ? fetchListenbrainzRecentAlbumCounts($username, 400)
-                    : fetchLastfmRecentAlbumCounts($username, 400);
+                if ($source === 'listenbrainz') {
+                    $recentScrobbles = fetchListenbrainzRecentAlbumCounts($username, 400);
+                    $candidates = buildCandidatesFromCounts($recentScrobbles, $existingAlbums, $min_plays);
+                    $modeLabel = 'the last 400 scrobbles/listens';
+                } elseif ($source === 'subsonic' && $mode === 'liked') {
+                    $likedAlbums = fetchSubsonicStarredAlbums(1000);
+                    $candidates = buildCandidatesFromAlbumRows($likedAlbums, $existingAlbums, $min_plays, false, 1);
+                    $modeLabel = 'your liked/starred albums';
+                } elseif ($source === 'subsonic') {
+                    $recentAlbums = fetchSubsonicAlbumList('recent', 400);
+                    $candidates = buildCandidatesFromAlbumRows($recentAlbums, $existingAlbums, $min_plays, false, max(1, $min_plays));
+                    foreach ($candidates as &$candidate) {
+                        if ((int)$candidate['playcount'] < (int)$min_plays) {
+                            $candidate['playcount'] = (int)$min_plays;
+                        }
+                    }
+                    unset($candidate);
+                    $modeLabel = 'recently played albums';
+                } else {
+                    $recentScrobbles = fetchLastfmRecentAlbumCounts($username, 400);
+                    $candidates = buildCandidatesFromCounts($recentScrobbles, $existingAlbums, $min_plays);
+                    $modeLabel = 'the last 400 scrobbles/listens';
+                }
 
-                $candidates = buildCandidatesFromCounts($recentScrobbles, $existingAlbums, $min_plays);
                 $candidateSource = $source;
 
                 if (empty($candidates)) {
-                    $message = "ℹ️ Searched the last 400 scrobbles via $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
+                    $message = "ℹ️ Searched $modeLabel via $sourceLabel. No new albums found.";
                     $messageType = 'info';
                 } else {
-                    $message = "✅ Analyzed the last 400 scrobbles via $sourceLabel and found " . count($candidates) . ' new candidates!';
+                    $message = "✅ Analyzed $modeLabel via $sourceLabel and found " . count($candidates) . ' new candidates!';
                 }
             }
         }
@@ -569,7 +764,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$importUsernameValue = $lastfm_user ?: $listenbrainz_user;
+$importUsernameValue = $lastfm_user ?: ($listenbrainz_user ?: $subsonic_user);
 $candidatesState = encodeCandidatesState($candidates, $candidateSource);
 
 require_once 'includes/header.php';
@@ -640,12 +835,13 @@ require_once 'includes/header.php';
 
     <div class="import-card sync-card">
         <h3 style="color: var(--accent);">🔄 Sync Live Playcounts</h3>
-        <p>This pulls your Top 1000 albums from Last.fm or ListenBrainz and updates matching playcounts in Duel Database + Queue.</p>
+        <p>This pulls your Top 1000 albums from Last.fm, ListenBrainz, or Navidrome/Subsonic and updates matching playcounts in Duel Database + Queue.</p>
         <form method="POST" class="flex-row">
             <input type="hidden" name="action" value="sync_playcounts">
             <select name="source" class="form-control" style="flex: 0 0 170px;">
                 <option value="lastfm">Last.fm</option>
                 <option value="listenbrainz">ListenBrainz</option>
+                <option value="subsonic">Navidrome/Subsonic</option>
             </select>
             <input type="text" name="username" class="form-control" style="flex: 1;" value="<?= htmlspecialchars($importUsernameValue) ?>" placeholder="Username">
             <button type="submit" class="btn btn-accent" style="flex: 0 0 200px;">Update Playcounts</button>
@@ -655,13 +851,14 @@ require_once 'includes/header.php';
     <div class="grid-2">
         <div class="import-card">
             <h3>🎯 API Import</h3>
-            <p>Choose source and mode: last 400 scrobbles/listens or Top albums.</p>
+            <p>Choose source and mode: Top/Recent for all APIs, plus Liked for Navidrome/Subsonic.</p>
             <form method="POST">
                 <input type="hidden" name="action" value="fetch_candidates">
                 <div class="form-group">
                     <select name="source" class="form-control">
                         <option value="lastfm">Last.fm</option>
                         <option value="listenbrainz">ListenBrainz</option>
+                        <option value="subsonic">Navidrome/Subsonic</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -669,8 +866,9 @@ require_once 'includes/header.php';
                 </div>
                 <div class="form-group flex-row">
                     <select name="fetch_mode" class="form-control" style="flex: 1;">
-                        <option value="recent">Last 400 scrobbles</option>
-                        <option value="top">Top albums</option>
+                        <option value="recent">Recent albums</option>
+                        <option value="top">Most played (Top albums)</option>
+                        <option value="liked">Liked / Starred albums (Subsonic only)</option>
                     </select>
                     <select name="top_limit" class="form-control" style="flex: 0 0 120px;">
                         <option value="100">Top 100</option>

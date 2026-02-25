@@ -22,16 +22,18 @@ Inspired by Flickchart, but focused on albums.
 ### Metadata & artwork
 - Album metadata + cover caching in `/cache`.
 - Multi-source metadata pipeline:
-  1. Last.fm (primary when configured)
-  2. ListenBrainz/MusicBrainz + Cover Art Archive (fallback/enrichment)
-  3. iTunes (final fallback)
+  1. Navidrome/Subsonic (local server first when configured)
+  2. Last.fm
+  3. ListenBrainz/MusicBrainz + Cover Art Archive
+  4. iTunes (final fallback)
 - Cached metadata is refreshed strategically (e.g. enrichment for missing year/genres).
 
 ### Import & maintenance
-- **Sync playcounts** from Last.fm or ListenBrainz top albums (up to Top 1000).
+- **Sync playcounts** from Last.fm, ListenBrainz, or Navidrome/Subsonic top albums (up to Top 1000).
 - **Candidate import via API**
-  - Last 400 scrobbles/listens mode
-  - Top albums mode (Top 100 / 200 / 500 / 1000)
+  - Most played mode (Top 100 / 200 / 500 / 1000)
+  - Recent mode
+  - Liked/Starred mode (Navidrome/Subsonic)
 - **CSV upload import** with preview and selectable rows.
 - **Bundled `1000_best_albums.csv` one-click preview**.
 - Import destination per album or in bulk:
@@ -121,6 +123,7 @@ Use **Settings** in the UI for all runtime configuration.
 ### Integrations
 - Last.fm API key
 - ListenBrainz API key + optional default username
+- Navidrome/Subsonic server settings (base URL, username, password/token)
 - OpenAI API key + model
 - Gemini API key + model
 
