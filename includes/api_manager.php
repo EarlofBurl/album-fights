@@ -7,6 +7,43 @@ function getAlbumCacheBaseName($artist, $album) {
     return "album_" . $hash;
 }
 
+
+function normalizeTagValue($value) {
+    $value = strtolower(trim((string)$value));
+    $value = preg_replace('/\s+/', ' ', $value);
+    return $value;
+}
+
+function applyTagBlacklist($genres) {
+    global $APP_SETTINGS;
+
+    if (!is_array($genres)) {
+        return [];
+    }
+
+    $blacklist = $APP_SETTINGS['tag_blacklist'] ?? [];
+    $blacklistLookup = [];
+    if (is_array($blacklist)) {
+        foreach ($blacklist as $tag) {
+            $normalized = normalizeTagValue($tag);
+            if ($normalized !== '') {
+                $blacklistLookup[$normalized] = true;
+            }
+        }
+    }
+
+    $filtered = [];
+    foreach ($genres as $genre) {
+        $normalized = normalizeTagValue($genre);
+        if ($normalized === '' || isset($blacklistLookup[$normalized])) {
+            continue;
+        }
+        $filtered[] = ucwords($normalized);
+    }
+
+    return array_values(array_unique($filtered));
+}
+
 function fetchJsonWithHeaders($url, $headers = [], $timeout = 20) {
     $opts = [
         'http' => [
@@ -329,6 +366,7 @@ function getAlbumData($artist, $album) {
             $refreshNeeded = $shouldRefreshOldItunesCache || $shouldRefreshForListenbrainzEnrichment;
 
             if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && (!$refreshNeeded || $cooldownActive)) {
+                $data['genres'] = applyTagBlacklist($data['genres'] ?? []);
                 devPerfLog('album_data.cache_hit', [
                     'artist' => $artist,
                     'album' => $album,
@@ -523,6 +561,8 @@ function getAlbumData($artist, $album) {
     if (!$foundImage && file_exists($imgFile)) {
         $result['local_image'] = $imgUrl;
     }
+
+    $result['genres'] = applyTagBlacklist($result['genres'] ?? []);
 
     file_put_contents($jsonFile, json_encode($result));
 
