@@ -10,6 +10,26 @@ define('FILE_SETTINGS', DIR_DATA . 'settings.json');
 if (!is_dir(DIR_CACHE)) mkdir(DIR_CACHE, 0777, true);
 if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
 
+
+define('APP_ENV', getenv('APP_ENV') ?: 'prod');
+define('DEV_PERF_LOG_ENABLED', APP_ENV === 'dev' && getenv('DEV_PERF_LOG') === '1');
+define('DEV_PERF_LOG_FILE', DIR_DATA . 'dev_perf.log');
+
+function devPerfLog($event, $context = []) {
+    if (!DEV_PERF_LOG_ENABLED) {
+        return;
+    }
+
+    $payload = [
+        'ts' => date('c'),
+        'event' => $event,
+        'context' => $context
+    ];
+
+    @file_put_contents(DEV_PERF_LOG_FILE, json_encode($payload, JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
+}
+
+
 // Default settings with current models
 $defaultSettings = [
     'lastfm_api_key' => getenv('LASTFM_API_KEY') ?: '',
