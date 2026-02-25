@@ -38,6 +38,173 @@ function fetchBinaryWithHeaders($url, $headers = [], $timeout = 12) {
     return $response === false ? null : $response;
 }
 
+
+function getSubsonicCredentials() {
+    global $APP_SETTINGS;
+
+    $baseUrl = rtrim(trim((string)($APP_SETTINGS['subsonic_base_url'] ?? '')), '/');
+    $username = trim((string)($APP_SETTINGS['subsonic_username'] ?? ''));
+    $password = trim((string)($APP_SETTINGS['subsonic_password'] ?? ''));
+
+    if ($baseUrl === '' || $username === '' || $password === '') {
+        return null;
+    }
+
+    return [
+        'base_url' => $baseUrl,
+        'username' => $username,
+        'password' => $password
+    ];
+}
+
+function isSubsonicConfigured() {
+    return getSubsonicCredentials() !== null;
+}
+
+function normalizeSubsonicApiArray($value) {
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $isAssoc = array_keys($value) !== range(0, count($value) - 1);
+    return $isAssoc ? [$value] : $value;
+}
+
+function callSubsonicApi($method, $params = []) {
+    $creds = getSubsonicCredentials();
+    if ($creds === null) {
+        return null;
+    }
+
+    $salt = bin2hex(random_bytes(6));
+    $query = array_merge([
+        'u' => $creds['username'],
+        't' => md5($creds['password'] . $salt),
+        's' => $salt,
+        'v' => '1.16.1',
+        'c' => 'albumfights',
+        'f' => 'json'
+    ], $params);
+
+    $url = $creds['base_url'] . '/rest/' . $method . '.view?' . http_build_query($query);
+    $decoded = fetchJsonWithHeaders($url, ['User-Agent: AlbumDuelApp/1.0 (subsonic)']);
+    if (!is_array($decoded) || !isset($decoded['subsonic-response'])) {
+        return null;
+    }
+
+    $payload = $decoded['subsonic-response'];
+    return ($payload['status'] ?? '') === 'ok' ? $payload : null;
+}
+
+function downloadSubsonicCoverArt($coverId) {
+    $coverId = trim((string)$coverId);
+    if ($coverId === '') {
+        return null;
+    }
+
+    $creds = getSubsonicCredentials();
+    if ($creds === null) {
+        return null;
+    }
+
+    $salt = bin2hex(random_bytes(6));
+    $query = [
+        'u' => $creds['username'],
+        't' => md5($creds['password'] . $salt),
+        's' => $salt,
+        'v' => '1.16.1',
+        'c' => 'albumfights',
+        'f' => 'json',
+        'id' => $coverId,
+        'size' => 900
+    ];
+
+    $url = $creds['base_url'] . '/rest/getCoverArt.view?' . http_build_query($query);
+    return fetchBinaryWithHeaders($url, ['User-Agent: AlbumDuelApp/1.0 (subsonic)'], 8);
+}
+
+function normalizeAlbumText($value) {
+    return preg_replace('/\s+/', ' ', strtolower(trim((string)$value)));
+}
+
+function fetchSubsonicAlbumData($artist, $album) {
+    if (!isSubsonicConfigured()) {
+        return null;
+    }
+
+    $searchResponse = callSubsonicApi('search3', [
+        'query' => trim($artist . ' ' . $album),
+        'albumCount' => 8,
+        'artistCount' => 0,
+        'songCount' => 0
+    ]);
+
+    if (!is_array($searchResponse)) {
+        return null;
+    }
+
+    $albums = normalizeSubsonicApiArray($searchResponse['searchResult3']['album'] ?? []);
+    if (empty($albums)) {
+        return null;
+    }
+
+    $targetArtist = normalizeAlbumText($artist);
+    $targetAlbum = normalizeAlbumText($album);
+
+    $best = null;
+    foreach ($albums as $entry) {
+        $entryArtist = normalizeAlbumText($entry['artist'] ?? '');
+        $entryAlbum = normalizeAlbumText($entry['name'] ?? '');
+
+        if ($entryAlbum === $targetAlbum && ($entryArtist === $targetArtist || str_contains($entryArtist, $targetArtist))) {
+            $best = $entry;
+            break;
+        }
+
+        if ($best === null && $entryAlbum === $targetAlbum) {
+            $best = $entry;
+        }
+    }
+
+    if ($best === null) {
+        $best = $albums[0];
+    }
+
+    $albumId = trim((string)($best['id'] ?? ''));
+    $coverId = trim((string)($best['coverArt'] ?? $albumId));
+    $genres = [];
+
+    if (!empty($best['genre'])) {
+        $genres[] = ucwords(trim((string)$best['genre']));
+    }
+
+    $year = !empty($best['year']) ? (string)$best['year'] : '';
+
+    if ($albumId !== '') {
+        $albumResponse = callSubsonicApi('getAlbum', ['id' => $albumId]);
+        if (is_array($albumResponse)) {
+            $fullAlbum = $albumResponse['album'] ?? [];
+            if (empty($year) && !empty($fullAlbum['year'])) {
+                $year = (string)$fullAlbum['year'];
+            }
+            if (!empty($fullAlbum['genre'])) {
+                $genres[] = ucwords(trim((string)$fullAlbum['genre']));
+            }
+            if ($coverId === '' && !empty($fullAlbum['coverArt'])) {
+                $coverId = trim((string)$fullAlbum['coverArt']);
+            }
+        }
+    }
+
+    return [
+        'url' => $albumId !== '' ? '#subsonic-album-' . $albumId : '',
+        'summary' => '',
+        'genres' => array_values(array_unique(array_filter($genres))),
+        'year' => $year,
+        'cover_id' => $coverId
+    ];
+}
+
 function fetchItunesAlbumData($artist, $album) {
     $term = trim($artist . ' ' . $album);
     if ($term === '') {
@@ -149,7 +316,7 @@ function getAlbumData($artist, $album) {
             }
 
             $source = $data['metadata_source'] ?? '';
-            $shouldRefreshOldItunesCache = $source === 'itunes' && (!empty(LASTFM_API_KEY) || !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']));
+            $shouldRefreshOldItunesCache = $source === 'itunes' && (isSubsonicConfigured() || !empty(LASTFM_API_KEY) || !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']));
             $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
             $missingYear = empty($data['year']);
             $missingGenres = empty($data['genres']) || !is_array($data['genres']);
@@ -186,7 +353,38 @@ function getAlbumData($artist, $album) {
 
     $foundImage = false;
 
-    // 2. Last.fm first
+    // 2. Navidrome/Subsonic first
+    if (isSubsonicConfigured()) {
+        $subsonicData = fetchSubsonicAlbumData($artist, $album);
+        if (is_array($subsonicData)) {
+            if (!empty($subsonicData['url'])) {
+                $result['url'] = $subsonicData['url'];
+            }
+
+            if (empty($result['year']) && !empty($subsonicData['year'])) {
+                $result['year'] = $subsonicData['year'];
+            }
+
+            if (!empty($subsonicData['genres'])) {
+                $result['genres'] = array_values(array_unique(array_merge($result['genres'], $subsonicData['genres'])));
+            }
+
+            if (!$foundImage && !empty($subsonicData['cover_id'])) {
+                $imgData = downloadSubsonicCoverArt($subsonicData['cover_id']);
+                if ($imgData !== null) {
+                    file_put_contents($imgFile, $imgData);
+                    $result['local_image'] = $imgUrl;
+                    $foundImage = true;
+                }
+            }
+
+            if ($foundImage || hasCoreAlbumMetadata($result)) {
+                $result['metadata_source'] = 'subsonic';
+            }
+        }
+    }
+
+    // 3. Last.fm fallback/enrichment
     if (!empty(LASTFM_API_KEY)) {
         $url = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=' . LASTFM_API_KEY . '&artist=' . urlencode($artist) . '&album=' . urlencode($album) . '&format=json';
         $decoded = fetchJsonWithHeaders($url, ['User-Agent: AlbumDuelApp/1.0'], 8);
@@ -247,7 +445,7 @@ function getAlbumData($artist, $album) {
         }
     }
 
-    // 3. ListenBrainz fallback/enrichment tier
+    // 4. ListenBrainz fallback/enrichment tier
     $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
     $needsFallback = !$foundImage || !hasCoreAlbumMetadata($result);
     $needsEnrichment = empty($result['year']) || empty($result['genres']);
@@ -286,7 +484,7 @@ function getAlbumData($artist, $album) {
         }
     }
 
-    // 4. iTunes fallback tier (only if still missing)
+    // 5. iTunes fallback tier (only if still missing)
     $needsFallback = !$foundImage || !hasCoreAlbumMetadata($result);
     if ($needsFallback) {
         $itunesData = fetchItunesAlbumData($artist, $album);
