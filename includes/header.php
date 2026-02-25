@@ -123,6 +123,7 @@
             <a href="import.php">Import</a>
             <a href="stats.php">Stats</a>
             <a href="list.php">The List</a>
+            <a href="database.php">Database</a>
             <a href="settings.php">⚙️ Settings</a>
         </div>
     </div>

@@ -58,6 +58,16 @@ Inspired by Flickchart, but focused on albums.
   - pagination (100 per page)
   - CSV export of current sorting
 
+### Database tools (new tab)
+- **Tag Blacklisting**:
+  - maintain a blacklist of noisy metadata tags (e.g. from Last.fm)
+  - blacklisted tags are excluded from stats and album metadata display
+- **Duplicate Check & Resolve**:
+  - fuzzy duplicate detection grouped by probable album matches
+  - delete single duplicate rows
+  - merge duplicate groups by selecting a primary entry
+  - merge behavior: `Playcount` + `Duels` are summed, `Elo` is averaged
+
 ### AI features
 - **AI Nerd comments** every 25 duels (optional).
 - **Boot Camp page** for on-demand AI assessment of your current Top 50.
