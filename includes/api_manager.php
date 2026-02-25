@@ -171,14 +171,6 @@ function getAlbumData($artist, $album) {
             if (isset($decoded['album']) && is_array($decoded['album'])) {
                 $albumData = $decoded['album'];
 
-                if (!empty($albumData['url'])) {
-                    $result['url'] = $albumData['url'];
-                }
-
-                if (!empty($albumData['wiki']['summary'])) {
-                    $result['summary'] = trim(strip_tags(explode('<a href', $albumData['wiki']['summary'])[0]));
-                }
-
     // 2. Last.fm first
     if (!empty(LASTFM_API_KEY)) {
         $url = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=' . LASTFM_API_KEY . '&artist=' . urlencode($artist) . '&album=' . urlencode($album) . '&format=json';
@@ -186,9 +178,9 @@ function getAlbumData($artist, $album) {
 
         if ($response !== false) {
             $decoded = json_decode($response, true);
-            if (isset($decoded['album']) && is_array($decoded['album'])) {
-                $albumData = $decoded['album'];
+            $albumData = $decoded['album'] ?? null;
 
+            if (is_array($albumData)) {
                 if (!empty($albumData['url'])) {
                     $result['url'] = $albumData['url'];
                 }
@@ -221,14 +213,16 @@ function getAlbumData($artist, $album) {
 
                 if (!empty($albumData['image']) && is_array($albumData['image'])) {
                     foreach (array_reverse($albumData['image']) as $img) {
-                        if (!empty($img['#text'])) {
-                            $imgData = @file_get_contents($img['#text']);
-                            if ($imgData !== false) {
-                                file_put_contents($imgFile, $imgData);
-                                $result['local_image'] = $imgUrl;
-                                $foundImage = true;
-                                break;
-                            }
+                        if (empty($img['#text'])) {
+                            continue;
+                        }
+
+                        $imgData = @file_get_contents($img['#text']);
+                        if ($imgData !== false) {
+                            file_put_contents($imgFile, $imgData);
+                            $result['local_image'] = $imgUrl;
+                            $foundImage = true;
+                            break;
                         }
                     }
                 }
