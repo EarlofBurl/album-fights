@@ -157,6 +157,27 @@ function getAlbumData($artist, $album) {
     ];
 
     $foundImage = false;
+    if (!empty(LASTFM_API_KEY)) {
+        $url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=" . LASTFM_API_KEY . "&artist=" . urlencode($artist) . "&album=" . urlencode($album) . "&format=json";
+        $response = @file_get_contents($url);
+
+    // 2. Last.fm first
+    if (!empty(LASTFM_API_KEY)) {
+        $url = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=' . LASTFM_API_KEY . '&artist=' . urlencode($artist) . '&album=' . urlencode($album) . '&format=json';
+        $response = @file_get_contents($url);
+
+        if ($response !== false) {
+            $decoded = json_decode($response, true);
+            if (isset($decoded['album']) && is_array($decoded['album'])) {
+                $albumData = $decoded['album'];
+
+                if (!empty($albumData['url'])) {
+                    $result['url'] = $albumData['url'];
+                }
+
+                if (!empty($albumData['wiki']['summary'])) {
+                    $result['summary'] = trim(strip_tags(explode('<a href', $albumData['wiki']['summary'])[0]));
+                }
 
     // 2. Last.fm first
     if (!empty(LASTFM_API_KEY)) {
