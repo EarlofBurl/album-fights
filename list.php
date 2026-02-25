@@ -1,6 +1,7 @@
 <?php
 require_once 'includes/config.php';
 require_once 'includes/data_manager.php';
+require_once 'includes/api_manager.php';
 
 $albums = loadCsv(FILE_ELO);
 
@@ -63,6 +64,18 @@ $visibleAlbums = array_slice($albums, $offset, $perPage);
 
 $nextOrder = $order === 'asc' ? 'desc' : 'asc';
 $arrow = $order === 'asc' ? '▲' : '▼';
+$topAlbums = getTopAlbums($albums, 25);
+
+function getCachedCoverUrl(string $artist, string $album): string {
+    $cacheBaseName = getAlbumCacheBaseName($artist, $album);
+    $cacheFilePath = DIR_CACHE . $cacheBaseName . '.jpg';
+
+    if (file_exists($cacheFilePath)) {
+        return 'cache/' . $cacheBaseName . '.jpg';
+    }
+
+    return '';
+}
 
 function sortLink(string $field, string $label, string $sortBy, string $order, int $page, string $nextOrder, string $arrow): string {
     $isActive = $sortBy === $field;
@@ -82,6 +95,79 @@ function sortLink(string $field, string $label, string $sortBy, string $order, i
 require_once 'includes/header.php';
 ?>
 
+<style>
+    .top25-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+        gap: 12px;
+        margin: 12px 0 30px;
+    }
+    .top25-card {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px;
+        min-height: 188px;
+        background: #171717;
+    }
+    .top25-card.top10 {
+        background: rgba(187, 134, 252, 0.15);
+        border-color: rgba(187, 134, 252, 0.45);
+    }
+    .top25-card.top3 {
+        grid-column: span 2;
+        min-height: 290px;
+        background: rgba(187, 134, 252, 0.24);
+    }
+    .top25-rank {
+        display: inline-block;
+        font-size: 0.78rem;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 999px;
+        padding: 2px 8px;
+        margin-bottom: 8px;
+        color: var(--text-muted);
+    }
+    .top25-cover {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #252525;
+    }
+    .top25-cover-placeholder {
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #2a2a2a, #1c1c1c);
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-size: 0.78rem;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+    .top25-title {
+        margin-top: 8px;
+        font-weight: 700;
+        font-size: 0.92rem;
+        line-height: 1.25;
+    }
+    .top25-artist {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        line-height: 1.2;
+        margin-top: 3px;
+    }
+    @media (max-width: 760px) {
+        .top25-card.top3 {
+            grid-column: span 1;
+            min-height: 210px;
+        }
+    }
+</style>
+
 <div style="width: 100%; max-width: 1400px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 10px; flex-wrap: wrap;">
         <h2 style="margin: 0;">The List</h2>
@@ -90,10 +176,44 @@ require_once 'includes/header.php';
 
     <p style="margin-top: 0; color: var(--text-muted);">Showing entries <?= $totalAlbums === 0 ? 0 : $offset + 1 ?> - <?= min($offset + $perPage, $totalAlbums) ?> of <?= $totalAlbums ?>.</p>
 
+    <h3 style="margin: 0 0 8px;">Top 25 Snapshot</h3>
+    <?php if (empty($topAlbums)): ?>
+        <p style="margin: 0 0 22px; color: var(--text-muted);">No albums available yet.</p>
+    <?php else: ?>
+        <div class="top25-grid">
+            <?php foreach ($topAlbums as $index => $album): ?>
+                <?php
+                $rank = $index + 1;
+                $coverUrl = getCachedCoverUrl($album['Artist'], $album['Album']);
+                $cardClasses = 'top25-card';
+                if ($rank <= 10) {
+                    $cardClasses .= ' top10';
+                }
+                if ($rank <= 3) {
+                    $cardClasses .= ' top3';
+                }
+                ?>
+                <div class="<?= htmlspecialchars($cardClasses) ?>">
+                    <span class="top25-rank">#<?= $rank ?></span>
+                    <?php if ($coverUrl !== ''): ?>
+                        <img class="top25-cover" src="<?= htmlspecialchars($coverUrl) ?>" alt="Cover: <?= htmlspecialchars($album['Artist'] . ' - ' . $album['Album']) ?>">
+                    <?php else: ?>
+                        <div class="top25-cover-placeholder">No cover cached</div>
+                    <?php endif; ?>
+                    <div class="top25-title"><?= htmlspecialchars($album['Album']) ?></div>
+                    <div class="top25-artist"><?= htmlspecialchars($album['Artist']) ?></div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+    <h3 style="margin: 0 0 10px;">Full List</h3>
+
     <div class="top-list" style="max-width: 100%; margin-top: 0;">
         <table>
             <thead>
                 <tr>
+                    <th>#</th>
                     <th><?= sortLink('Artist', 'Artist', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
                     <th><?= sortLink('Album', 'Album', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
                     <th><?= sortLink('Elo', 'Elo', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
@@ -104,11 +224,12 @@ require_once 'includes/header.php';
             <tbody>
                 <?php if (empty($visibleAlbums)): ?>
                     <tr>
-                        <td colspan="5" style="text-align: center;">No albums found.</td>
+                        <td colspan="6" style="text-align: center;">No albums found.</td>
                     </tr>
                 <?php else: ?>
-                    <?php foreach ($visibleAlbums as $album): ?>
+                    <?php foreach ($visibleAlbums as $index => $album): ?>
                         <tr>
+                            <td class="rank-col"><?= $offset + $index + 1 ?></td>
                             <td><?= htmlspecialchars($album['Artist']) ?></td>
                             <td><?= htmlspecialchars($album['Album']) ?></td>
                             <td><?= round((float)$album['Elo']) ?></td>
