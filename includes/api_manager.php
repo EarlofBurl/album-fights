@@ -133,8 +133,14 @@ function getAlbumData($artist, $album) {
 
             $source = $data['metadata_source'] ?? '';
             $shouldRefreshOldItunesCache = $source === 'itunes' && (!empty(LASTFM_API_KEY) || !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']));
+            $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
+            $missingYear = empty($data['year']);
+            $missingGenres = empty($data['genres']) || !is_array($data['genres']);
+            $shouldRefreshForListenbrainzEnrichment = $listenbrainzConfigured
+                && $source !== 'listenbrainz'
+                && ($missingYear || $missingGenres);
 
-            if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && !$shouldRefreshOldItunesCache) {
+            if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && !$shouldRefreshOldItunesCache && !$shouldRefreshForListenbrainzEnrichment) {
                 return $data;
             }
         }
@@ -154,6 +160,24 @@ function getAlbumData($artist, $album) {
     if (!empty(LASTFM_API_KEY)) {
         $url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=" . LASTFM_API_KEY . "&artist=" . urlencode($artist) . "&album=" . urlencode($album) . "&format=json";
         $response = @file_get_contents($url);
+
+    // 2. Last.fm first
+    if (!empty(LASTFM_API_KEY)) {
+        $url = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=' . LASTFM_API_KEY . '&artist=' . urlencode($artist) . '&album=' . urlencode($album) . '&format=json';
+        $response = @file_get_contents($url);
+
+        if ($response !== false) {
+            $decoded = json_decode($response, true);
+            if (isset($decoded['album']) && is_array($decoded['album'])) {
+                $albumData = $decoded['album'];
+
+                if (!empty($albumData['url'])) {
+                    $result['url'] = $albumData['url'];
+                }
+
+                if (!empty($albumData['wiki']['summary'])) {
+                    $result['summary'] = trim(strip_tags(explode('<a href', $albumData['wiki']['summary'])[0]));
+                }
 
     // 2. Last.fm first
     if (!empty(LASTFM_API_KEY)) {
@@ -216,9 +240,11 @@ function getAlbumData($artist, $album) {
         }
     }
 
-    // 3. ListenBrainz fallback tier (only for still missing fields)
+    // 3. ListenBrainz fallback/enrichment tier
+    $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
     $needsFallback = !$foundImage || !hasCoreAlbumMetadata($result);
-    if ($needsFallback) {
+    $needsEnrichment = empty($result['year']) || empty($result['genres']);
+    if ($listenbrainzConfigured && ($needsFallback || $needsEnrichment)) {
         $listenbrainzData = fetchListenbrainzAlbumData($artist, $album);
         if (is_array($listenbrainzData)) {
             if (empty($result['url']) && !empty($listenbrainzData['url'])) {
@@ -227,14 +253,6 @@ function getAlbumData($artist, $album) {
 
             if ($result['summary'] === 'No info available.' && !empty($listenbrainzData['summary'])) {
                 $result['summary'] = $listenbrainzData['summary'];
-            }
-
-            if (empty($result['genres']) && !empty($listenbrainzData['genres'])) {
-                $result['genres'] = $listenbrainzData['genres'];
-            }
-
-            if (empty($result['year']) && !empty($listenbrainzData['year'])) {
-                $result['year'] = $listenbrainzData['year'];
             }
 
             if (!$foundImage && !empty($listenbrainzData['image_url'])) {
@@ -246,7 +264,15 @@ function getAlbumData($artist, $album) {
                 }
             }
 
-            if ($result['metadata_source'] === '' && ($foundImage || hasCoreAlbumMetadata($result))) {
+            if (empty($result['year']) && !empty($listenbrainzData['year'])) {
+                $result['year'] = $listenbrainzData['year'];
+            }
+
+            if (!empty($listenbrainzData['genres'])) {
+                $result['genres'] = array_values(array_unique(array_merge($result['genres'], $listenbrainzData['genres'])));
+            }
+
+            if ($result['metadata_source'] === '' || $needsEnrichment) {
                 $result['metadata_source'] = 'listenbrainz';
             }
         }
@@ -284,36 +310,6 @@ function getAlbumData($artist, $album) {
 
             if ($result['metadata_source'] === '' && ($foundImage || hasCoreAlbumMetadata($result))) {
                 $result['metadata_source'] = 'itunes';
-            }
-        }
-    }
-    }
-
-    // 3. Fallback to iTunes when Last.fm is unavailable/incomplete
-    $itunesData = fetchItunesAlbumData($artist, $album);
-    if (is_array($itunesData)) {
-        if (empty($result['url']) && !empty($itunesData['url'])) {
-            $result['url'] = $itunesData['url'];
-        }
-
-        if ($result['summary'] === 'No info available.' && !empty($itunesData['summary'])) {
-            $result['summary'] = $itunesData['summary'];
-        }
-
-        if (empty($result['genres']) && !empty($itunesData['genres'])) {
-            $result['genres'] = $itunesData['genres'];
-        }
-
-        if (empty($result['year']) && !empty($itunesData['year'])) {
-            $result['year'] = $itunesData['year'];
-        }
-
-        if (!$foundImage && !empty($itunesData['image_url'])) {
-            $imgData = @file_get_contents($itunesData['image_url']);
-            if ($imgData !== false) {
-                file_put_contents($imgFile, $imgData);
-                $result['local_image'] = $imgUrl;
-                $foundImage = true;
             }
         }
     }
