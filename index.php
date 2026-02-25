@@ -3,7 +3,10 @@ require_once 'includes/config.php';
 require_once 'includes/data_manager.php';
 require_once 'includes/api_manager.php';
 
+$requestStartedAt = microtime(true);
+$albumsLoadStartedAt = microtime(true);
 $albums = loadCsv(FILE_ELO);
+$albumsLoadMs = round((microtime(true) - $albumsLoadStartedAt) * 1000, 2);
 $review_text = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -93,6 +96,7 @@ if ($total > 0) {
 }
 
 if ($total >= 2) {
+    $matchmakingStartedAt = microtime(true);
     $defaultWeights = [
         'top_25_vs' => 20,
         'top_50_vs' => 20,
@@ -239,6 +243,8 @@ if ($total >= 2) {
         $_SESSION['current_duel'] = ['idxA' => $idxA, 'idxB' => $idxB];
     }
 
+    $matchmakingMs = round((microtime(true) - $matchmakingStartedAt) * 1000, 2);
+
     $albumA = $albums[$idxA];
     $albumB = $albums[$idxB];
     $albumA['OriginalIndex'] = $idxA;
@@ -246,9 +252,24 @@ if ($total >= 2) {
     $albumA['Rank'] = $rankByIndex[$idxA] ?? null;
     $albumB['Rank'] = $rankByIndex[$idxB] ?? null;
 
+    $infoAStartedAt = microtime(true);
     $infoA = getAlbumData($albumA['Artist'], $albumA['Album']);
+    $infoAMs = round((microtime(true) - $infoAStartedAt) * 1000, 2);
+
+    $infoBStartedAt = microtime(true);
     $infoB = getAlbumData($albumB['Artist'], $albumB['Album']);
+    $infoBMs = round((microtime(true) - $infoBStartedAt) * 1000, 2);
 }
+
+devPerfLog('duel.request', [
+    'method' => $_SERVER['REQUEST_METHOD'] ?? 'CLI',
+    'album_count' => $total,
+    'albums_load_ms' => $albumsLoadMs,
+    'matchmaking_ms' => $matchmakingMs ?? null,
+    'album_a_data_ms' => $infoAMs ?? null,
+    'album_b_data_ms' => $infoBMs ?? null,
+    'total_ms' => round((microtime(true) - $requestStartedAt) * 1000, 2)
+]);
 
 require_once 'includes/header.php';
 ?>

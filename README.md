@@ -124,6 +124,25 @@ To move your rankings to a new computer, simply copy the `/data` folder.
 
 ---
 
+
+## 🧪 Dev-only Performance Logging
+
+For local troubleshooting you can enable lightweight timing logs on duel requests.
+
+```bash
+APP_ENV=dev DEV_PERF_LOG=1
+```
+
+When enabled, the app writes JSON-lines timing entries to:
+
+```
+data/dev_perf.log
+```
+
+This is **disabled by default**, so normal Docker runs are unaffected unless you explicitly set those env vars.
+
+---
+
 ## 📜 License
 
 MIT License.  

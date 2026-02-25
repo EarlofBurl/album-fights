@@ -25,6 +25,19 @@ function fetchJsonWithHeaders($url, $headers = [], $timeout = 20) {
     return is_array($decoded) ? $decoded : null;
 }
 
+function fetchBinaryWithHeaders($url, $headers = [], $timeout = 12) {
+    $opts = [
+        'http' => [
+            'method' => 'GET',
+            'timeout' => $timeout,
+            'header' => implode("\r\n", $headers) . "\r\n"
+        ]
+    ];
+
+    $response = @file_get_contents($url, false, stream_context_create($opts));
+    return $response === false ? null : $response;
+}
+
 function fetchItunesAlbumData($artist, $album) {
     $term = trim($artist . ' ' . $album);
     if ($term === '') {
@@ -117,11 +130,15 @@ function hasCoreAlbumMetadata($result) {
 function getAlbumData($artist, $album) {
     global $APP_SETTINGS;
 
+    $fnStart = microtime(true);
     $safeName = getAlbumCacheBaseName($artist, $album);
 
     $jsonFile = DIR_CACHE . $safeName . '.json';
     $imgFile = DIR_CACHE . $safeName . '.jpg';
     $imgUrl = 'cache/' . $safeName . '.jpg';
+
+    $now = time();
+    $refreshCooldownSeconds = 60 * 60 * 24 * 7; // one week
 
     // 1. Load cache
     if (file_exists($jsonFile)) {
@@ -140,7 +157,17 @@ function getAlbumData($artist, $album) {
                 && $source !== 'listenbrainz'
                 && ($missingYear || $missingGenres);
 
-            if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && !$shouldRefreshOldItunesCache && !$shouldRefreshForListenbrainzEnrichment) {
+            $lastRefreshAttempt = isset($data['refresh_attempted_at']) ? (int)$data['refresh_attempted_at'] : 0;
+            $cooldownActive = $lastRefreshAttempt > 0 && ($now - $lastRefreshAttempt) < $refreshCooldownSeconds;
+            $refreshNeeded = $shouldRefreshOldItunesCache || $shouldRefreshForListenbrainzEnrichment;
+
+            if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && (!$refreshNeeded || $cooldownActive)) {
+                devPerfLog('album_data.cache_hit', [
+                    'artist' => $artist,
+                    'album' => $album,
+                    'metadata_source' => $source,
+                    'elapsed_ms' => round((microtime(true) - $fnStart) * 1000, 2)
+                ]);
                 return $data;
             }
         }
@@ -153,7 +180,8 @@ function getAlbumData($artist, $album) {
         'genres' => [],
         'year' => '',
         'full_data_fetched' => true,
-        'metadata_source' => ''
+        'metadata_source' => '',
+        'refresh_attempted_at' => $now
     ];
 
     $foundImage = false;
@@ -161,10 +189,8 @@ function getAlbumData($artist, $album) {
     // 2. Last.fm first
     if (!empty(LASTFM_API_KEY)) {
         $url = 'http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=' . LASTFM_API_KEY . '&artist=' . urlencode($artist) . '&album=' . urlencode($album) . '&format=json';
-        $response = @file_get_contents($url);
-
-        if ($response !== false) {
-            $decoded = json_decode($response, true);
+        $decoded = fetchJsonWithHeaders($url, ['User-Agent: AlbumDuelApp/1.0'], 8);
+        if (is_array($decoded)) {
             $albumData = $decoded['album'] ?? null;
 
             if (is_array($albumData)) {
@@ -204,8 +230,8 @@ function getAlbumData($artist, $album) {
                             continue;
                         }
 
-                        $imgData = @file_get_contents($img['#text']);
-                        if ($imgData !== false) {
+                        $imgData = fetchBinaryWithHeaders((string)$img['#text'], ['User-Agent: AlbumDuelApp/1.0'], 8);
+                        if ($imgData !== null) {
                             file_put_contents($imgFile, $imgData);
                             $result['local_image'] = $imgUrl;
                             $foundImage = true;
@@ -238,8 +264,8 @@ function getAlbumData($artist, $album) {
             }
 
             if (!$foundImage && !empty($listenbrainzData['image_url'])) {
-                $imgData = @file_get_contents($listenbrainzData['image_url']);
-                if ($imgData !== false) {
+                $imgData = fetchBinaryWithHeaders($listenbrainzData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
+                if ($imgData !== null) {
                     file_put_contents($imgFile, $imgData);
                     $result['local_image'] = $imgUrl;
                     $foundImage = true;
@@ -282,8 +308,8 @@ function getAlbumData($artist, $album) {
             }
 
             if (!$foundImage && !empty($itunesData['image_url'])) {
-                $imgData = @file_get_contents($itunesData['image_url']);
-                if ($imgData !== false) {
+                $imgData = fetchBinaryWithHeaders($itunesData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
+                if ($imgData !== null) {
                     file_put_contents($imgFile, $imgData);
                     $result['local_image'] = $imgUrl;
                     $foundImage = true;
@@ -301,6 +327,14 @@ function getAlbumData($artist, $album) {
     }
 
     file_put_contents($jsonFile, json_encode($result));
+
+    devPerfLog('album_data.refresh', [
+        'artist' => $artist,
+        'album' => $album,
+        'metadata_source' => $result['metadata_source'] ?? '',
+        'has_local_image' => !empty($result['local_image']),
+        'elapsed_ms' => round((microtime(true) - $fnStart) * 1000, 2)
+    ]);
 
     return $result;
 }
