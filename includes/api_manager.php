@@ -7,6 +7,49 @@ function getAlbumCacheBaseName($artist, $album) {
     return "album_" . $hash;
 }
 
+function fetchItunesAlbumData($artist, $album) {
+    $term = trim($artist . ' ' . $album);
+    if ($term === '') {
+        return null;
+    }
+
+    $url = 'https://itunes.apple.com/search?term=' . urlencode($term) . '&entity=album&limit=1';
+    $response = @file_get_contents($url);
+    if ($response === false) {
+        return null;
+    }
+
+    $decoded = json_decode($response, true);
+    if (!isset($decoded['results'][0]) || !is_array($decoded['results'][0])) {
+        return null;
+    }
+
+    $result = $decoded['results'][0];
+    $genres = [];
+
+    if (!empty($result['primaryGenreName'])) {
+        $genres[] = ucwords(trim((string)$result['primaryGenreName']));
+    }
+
+    $year = '';
+    if (!empty($result['releaseDate']) && preg_match('/\b(19|20)\d{2}\b/', (string)$result['releaseDate'], $matches)) {
+        $year = $matches[0];
+    }
+
+    $coverUrl = '';
+    if (!empty($result['artworkUrl100'])) {
+        $coverUrl = str_replace('100x100bb', '600x600bb', (string)$result['artworkUrl100']);
+    }
+
+    return [
+        'url' => $result['collectionViewUrl'] ?? '',
+        'summary' => 'Metadata provided by iTunes fallback.',
+        'genres' => array_values(array_unique($genres)),
+        'year' => $year,
+        'image_url' => $coverUrl
+    ];
+}
+
 function getAlbumData($artist, $album) {
     global $APP_SETTINGS;
 
@@ -37,12 +80,13 @@ function getAlbumData($artist, $album) {
         'full_data_fetched' => true
     ];
 
-    // 2. Try Last.fm
-    $url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=" . LASTFM_API_KEY . "&artist=" . urlencode($artist) . "&album=" . urlencode($album) . "&format=json";
-    $response = @file_get_contents($url);
+    // 2. Try Last.fm (if configured)
     $foundImage = false;
+    if (!empty(LASTFM_API_KEY)) {
+        $url = "http://ws.audioscrobbler.com/2.0/?method=album.getinfo&api_key=" . LASTFM_API_KEY . "&artist=" . urlencode($artist) . "&album=" . urlencode($album) . "&format=json";
+        $response = @file_get_contents($url);
 
-    if ($response) {
+        if ($response) {
         $decoded = json_decode($response, true);
         if (isset($decoded['album'])) {
             $result['url'] = $decoded['album']['url'] ?? '';
@@ -89,6 +133,36 @@ function getAlbumData($artist, $album) {
                         }
                     }
                 }
+            }
+        }
+    }
+    }
+
+    // 3. Fallback to iTunes when Last.fm is unavailable/incomplete
+    $itunesData = fetchItunesAlbumData($artist, $album);
+    if (is_array($itunesData)) {
+        if (empty($result['url']) && !empty($itunesData['url'])) {
+            $result['url'] = $itunesData['url'];
+        }
+
+        if ($result['summary'] === 'No info available.' && !empty($itunesData['summary'])) {
+            $result['summary'] = $itunesData['summary'];
+        }
+
+        if (empty($result['genres']) && !empty($itunesData['genres'])) {
+            $result['genres'] = $itunesData['genres'];
+        }
+
+        if (empty($result['year']) && !empty($itunesData['year'])) {
+            $result['year'] = $itunesData['year'];
+        }
+
+        if (!$foundImage && !empty($itunesData['image_url'])) {
+            $imgData = @file_get_contents($itunesData['image_url']);
+            if ($imgData !== false) {
+                file_put_contents($imgFile, $imgData);
+                $result['local_image'] = $imgUrl;
+                $foundImage = true;
             }
         }
     }

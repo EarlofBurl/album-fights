@@ -10,6 +10,7 @@ $candidateSource = '';
 global $APP_SETTINGS;
 
 $min_plays = $APP_SETTINGS['import_min_plays'];
+$bundledBestAlbumsCsv = __DIR__ . '/1000_best_albums.csv';
 
 if (empty($_SESSION['listenbrainz_user']) && !empty($APP_SETTINGS['listenbrainz_username'])) {
     $_SESSION['listenbrainz_user'] = $APP_SETTINGS['listenbrainz_username'];
@@ -73,6 +74,27 @@ function buildExistingAlbumsLookup() {
     }
 
     return $existingAlbums;
+}
+
+function parseCandidateFromCsvRow($data, $defaultPlaycount = 1) {
+    if (!is_array($data) || count($data) < 2) {
+        return null;
+    }
+
+    $artist = trim((string)($data[0] ?? ''));
+    $album = trim((string)($data[1] ?? ''));
+
+    if ($artist === '' || $album === '') {
+        return null;
+    }
+
+    $playcount = isset($data[2]) ? (int)$data[2] : (int)$defaultPlaycount;
+
+    return [
+        'artist' => $artist,
+        'album' => $album,
+        'playcount' => $playcount
+    ];
 }
 
 function fetchLastfmTopAlbums($username, $limit) {
@@ -478,15 +500,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (($handle = fopen($fileTmpPath, 'r')) !== FALSE) {
                     $header = fgetcsv($handle, 1000, ',');
                     while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
-                        if (count($data) >= 2) {
-                            $playcount = isset($data[2]) ? (int)$data[2] : 1;
-                            if ($playcount >= $min_plays) {
-                                $candidates[] = [
-                                    'artist' => trim($data[0]),
-                                    'album' => trim($data[1]),
-                                    'playcount' => $playcount
-                                ];
-                            }
+                        $candidate = parseCandidateFromCsvRow($data);
+                        if ($candidate !== null && $candidate['playcount'] >= $min_plays) {
+                            $candidates[] = $candidate;
                         }
                     }
                     fclose($handle);
@@ -498,6 +514,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $message = '❌ Error uploading the CSV file.';
                 $messageType = 'error';
+            }
+        }
+        elseif ($action === 'load_best_albums') {
+            if (!file_exists($bundledBestAlbumsCsv)) {
+                $message = '❌ Could not find 1000_best_albums.csv in the project root.';
+                $messageType = 'error';
+            } elseif (($handle = fopen($bundledBestAlbumsCsv, 'r')) === FALSE) {
+                $message = '❌ Could not open 1000_best_albums.csv.';
+                $messageType = 'error';
+            } else {
+                $existingAlbums = buildExistingAlbumsLookup();
+                $existingCandidates = [];
+                $candidatePlaycount = max(1, (int)$min_plays);
+                $added = 0;
+                $alreadyInDb = 0;
+
+                while (($row = fgetcsv($handle, 2000, ',')) !== FALSE) {
+                    $candidate = parseCandidateFromCsvRow($row, $candidatePlaycount);
+                    if ($candidate === null) {
+                        continue;
+                    }
+
+                    $dbKey = strtolower(trim($candidate['artist']) . '_' . trim($candidate['album']));
+                    if (isset($existingAlbums[$dbKey])) {
+                        $alreadyInDb++;
+                        continue;
+                    }
+
+                    $candidateKey = getCandidateKey($candidate);
+                    if (isset($existingCandidates[$candidateKey])) {
+                        continue;
+                    }
+
+                    $existingCandidates[$candidateKey] = true;
+                    $candidates[] = $candidate;
+                    $added++;
+                }
+
+                fclose($handle);
+                usort($candidates, function($a, $b) {
+                    return strcmp(getCandidateKey($a), getCandidateKey($b));
+                });
+
+                $candidateSource = 'best1000';
+                if ($added === 0) {
+                    $message = "ℹ️ Checked bundled 1000_best_albums.csv. No new albums found (already in DB/Queue).";
+                    $messageType = 'info';
+                } else {
+                    $message = "📚 Bundled Top-1000 preview ready: <strong>$added</strong> new albums found. Skipped <strong>$alreadyInDb</strong> already present entries.";
+                }
             }
         }
     }
@@ -626,6 +692,15 @@ require_once 'includes/header.php';
                     <input type="file" name="csv_file" accept=".csv" class="form-control">
                 </div>
                 <button type="submit" class="btn btn-success btn-full">Upload & Preview CSV</button>
+            </form>
+        </div>
+
+        <div class="import-card">
+            <h3>🏆 Bundled Top 1000</h3>
+            <p>One-click preview from <code>1000_best_albums.csv</code>. Only albums not already in DB/Queue are shown.</p>
+            <form method="POST">
+                <input type="hidden" name="action" value="load_best_albums">
+                <button type="submit" class="btn btn-accent btn-full">Load 1000 Best Albums</button>
             </form>
         </div>
     </div>
