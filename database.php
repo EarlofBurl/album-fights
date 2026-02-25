@@ -144,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             saveCsv(FILE_ELO, $albums);
-            $message = '✅ Duplicate group merged (plays summed, Elo averaged).';
+            $message = '✅ Duplicate group merged (plays + duels summed, Elo averaged).';
         }
     }
 }
@@ -224,7 +224,7 @@ require_once 'includes/header.php';
 
         <section style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
             <h3 style="margin-top: 0; color: var(--accent);">2) Duplicate Check & Resolving</h3>
-            <p style="color: var(--text-muted); margin-top: 0;">Fuzzy duplicate detection by similar artist+album names. Merge keeps one main entry, sums plays, and averages Elo.</p>
+            <p style="color: var(--text-muted); margin-top: 0;">Fuzzy duplicate detection by similar artist+album names. Merge keeps one main entry, sums plays + duels, and averages Elo.</p>
 
             <p style="margin: 0 0 12px 0; color: var(--text-muted);">Found groups: <strong style="color: #fff;"><?= count($duplicateGroups) ?></strong></p>
 
