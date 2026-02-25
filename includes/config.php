@@ -14,6 +14,7 @@ if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
 $defaultSettings = [
     'lastfm_api_key' => getenv('LASTFM_API_KEY') ?: '',
     'listenbrainz_api_key' => getenv('LISTENBRAINZ_API_KEY') ?: '',
+    'listenbrainz_username' => getenv('LISTENBRAINZ_USERNAME') ?: '',
     'gemini_api_key' => getenv('GEMINI_API_KEY') ?: '',
     'openai_api_key' => getenv('OPENAI_API_KEY') ?: '',
     'ai_provider' => 'gemini', 

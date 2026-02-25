@@ -27,6 +27,7 @@ $activeDuelWeights = array_merge($defaultDuelWeights, $activeDuelWeights);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_settings') {
     $APP_SETTINGS['lastfm_api_key'] = trim($_POST['lastfm_api_key']);
     $APP_SETTINGS['listenbrainz_api_key'] = trim($_POST['listenbrainz_api_key']);
+    $APP_SETTINGS['listenbrainz_username'] = trim($_POST['listenbrainz_username']);
     $APP_SETTINGS['gemini_api_key'] = trim($_POST['gemini_api_key']);
     $APP_SETTINGS['openai_api_key'] = trim($_POST['openai_api_key']);
     
@@ -106,6 +107,9 @@ require_once 'includes/header.php';
 
         <label>Listenbrainz API Key:</label>
         <input type="text" name="listenbrainz_api_key" value="<?= htmlspecialchars($APP_SETTINGS['listenbrainz_api_key']) ?>" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+
+        <label>Listenbrainz Username:</label>
+        <input type="text" name="listenbrainz_username" value="<?= htmlspecialchars($APP_SETTINGS['listenbrainz_username']) ?>" style="width: 100%; padding: 8px; margin-bottom: 15px;" placeholder="Your ListenBrainz username">
 
         <h3>🤖 AI Nerd Commentator</h3>
         <label>

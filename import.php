@@ -3,13 +3,17 @@ require_once 'includes/config.php';
 require_once 'includes/data_manager.php';
 
 $lastfm_user = $_SESSION['lastfm_user'] ?? '';
-$listenbrainz_user = $_SESSION['listenbrainz_user'] ?? '';
+$listenbrainz_user = $_SESSION['listenbrainz_user'] ?? ($APP_SETTINGS['listenbrainz_username'] ?? '');
 $candidates = [];
 $message = '';
 $candidateSource = '';
 global $APP_SETTINGS;
 
 $min_plays = $APP_SETTINGS['import_min_plays'];
+
+if (empty($_SESSION['listenbrainz_user']) && !empty($APP_SETTINGS['listenbrainz_username'])) {
+    $_SESSION['listenbrainz_user'] = $APP_SETTINGS['listenbrainz_username'];
+}
 
 function encodeCandidatesState($candidates, $source = '') {
     return base64_encode(json_encode([
@@ -40,8 +44,13 @@ function getCandidateKey($candidate) {
 
 function fetchJson($url, $headers = []) {
     $opts = ['http' => ['method' => 'GET', 'timeout' => 20]];
+
+    $userAgent = "User-Agent: AlbumDuelApp/1.0\r\n";
+
     if (!empty($headers)) {
-        $opts['http']['header'] = implode("\r\n", $headers) . "\r\n";
+        $opts['http']['header'] = $userAgent . implode("\r\n", $headers) . "\r\n";
+    } else {
+        $opts['http']['header'] = $userAgent;
     }
 
     $response = @file_get_contents($url, false, stream_context_create($opts));
@@ -170,6 +179,11 @@ function fetchListenbrainzRecentAlbumCounts($username, $targetTracks = 400) {
     $remaining = $targetTracks;
     $maxTs = null;
 
+    $headers = ['Accept: application/json'];
+    if (!empty(LISTENBRAINZ_API_KEY)) {
+        $headers[] = 'Authorization: Token ' . LISTENBRAINZ_API_KEY;
+    }
+
     while ($remaining > 0) {
         $count = min(100, $remaining);
         $url = 'https://api.listenbrainz.org/1/user/' . rawurlencode($username) . '/listens?count=' . $count;
@@ -177,7 +191,7 @@ function fetchListenbrainzRecentAlbumCounts($username, $targetTracks = 400) {
             $url .= '&max_ts=' . $maxTs;
         }
 
-        $data = fetchJson($url, ['Accept: application/json']);
+        $data = fetchJson($url, $headers);
         $listens = $data['payload']['listens'] ?? [];
         if (empty($listens)) {
             break;
@@ -489,6 +503,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$importUsernameValue = $lastfm_user ?: $listenbrainz_user;
 $candidatesState = encodeCandidatesState($candidates, $candidateSource);
 
 require_once 'includes/header.php';
@@ -566,7 +581,7 @@ require_once 'includes/header.php';
                 <option value="lastfm">Last.fm</option>
                 <option value="listenbrainz">ListenBrainz</option>
             </select>
-            <input type="text" name="username" class="form-control" style="flex: 1;" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username">
+            <input type="text" name="username" class="form-control" style="flex: 1;" value="<?= htmlspecialchars($importUsernameValue) ?>" placeholder="Username">
             <button type="submit" class="btn btn-accent" style="flex: 0 0 200px;">Update Playcounts</button>
         </form>
     </div>
@@ -584,7 +599,7 @@ require_once 'includes/header.php';
                     </select>
                 </div>
                 <div class="form-group">
-                    <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($lastfm_user ?: $listenbrainz_user) ?>" placeholder="Username">
+                    <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($importUsernameValue) ?>" placeholder="Username">
                 </div>
                 <div class="form-group flex-row">
                     <select name="fetch_mode" class="form-control" style="flex: 1;">
