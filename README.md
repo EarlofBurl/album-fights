@@ -2,21 +2,64 @@
 
 ![Docker](https://img.shields.io/badge/docker-ready-blue)
 ![Docker Pulls](https://img.shields.io/docker/pulls/earlofburl/album-fights)
-![AI Powered](https://img.shields.io/badge/AI-powered-purple)
 ![Status](https://img.shields.io/badge/status-active-success)
 
-A web-based, Elo-driven application that helps you definitively rank your favorite music albums by pitting them against each other in 1v1 duels.  
-Inspired by Flickchart, but built for music nerds.
+A web app for ranking albums with an Elo system via 1v1 duels.
+Inspired by Flickchart, but focused on albums.
 
 ---
 
-## ✨ Features
+## ✨ Feature Overview
 
-- **🧮 Elo Rating System:** Mathematically sort your taste over time based on 1v1 matchups.
-- **🥊 Tiered Matchmaking:** Forces albums in similar brackets to fight, preventing ranking stagnation.
-- **🎵 Last.fm Integration:** Fetch scrobbles, import your Top 1000, and sync live play counts.
-- **🤖 AI Music Snob:** Connect OpenAI or Gemini to get witty, snobbish roasts of your taste every 25 duels.
-- **🪖 The Boot Camp:** An on-demand, deep-dive AI assessment of your current Top 50.
+### Core Duel Engine
+- **Elo-based ranking** with win/loss/draw support.
+- **Weighted matchmaking categories** (Top 25 / Top 50 / Top 100 / high playcount / never-dueled / random).
+- **Configurable category weights** in Settings (normalized to 100%).
+- **Session-safe duel handling** (current duel is kept stable until voted).
+- **Quick actions in duel view**: send album to queue or delete it.
+- **Top 20 live table** directly on the duel page.
+
+### Metadata & artwork
+- Album metadata + cover caching in `/cache`.
+- Multi-source metadata pipeline:
+  1. Last.fm (primary when configured)
+  2. ListenBrainz/MusicBrainz + Cover Art Archive (fallback/enrichment)
+  3. iTunes (final fallback)
+- Cached metadata is refreshed strategically (e.g. enrichment for missing year/genres).
+
+### Import & maintenance
+- **Sync playcounts** from Last.fm or ListenBrainz top albums (up to Top 1000).
+- **Candidate import via API**
+  - Last 400 scrobbles/listens mode
+  - Top albums mode (Top 100 / 200 / 500 / 1000)
+- **CSV upload import** with preview and selectable rows.
+- **Bundled `1000_best_albums.csv` one-click preview**.
+- Import destination per album or in bulk:
+  - Duel DB (`elo_state.csv`)
+  - Listening Queue (`listening_queue.csv`)
+- Import threshold: minimum plays configurable in Settings.
+
+### Queue workflow
+- Dedicated queue page for parked albums.
+- Restore queued albums back into duel DB.
+- Delete queued albums permanently.
+
+### Analysis & list views
+- **Stats dashboard** with:
+  - Top 10 / Flop 10
+  - battle-hardened veterans
+  - hidden gems / disappointments
+  - top artists (power score)
+  - best/worst genres and decades (derived from cached metadata)
+- **The List page**:
+  - sortable columns (Artist/Album/Elo/Duels/Playcount)
+  - pagination (100 per page)
+  - CSV export of current sorting
+
+### AI features
+- **AI Nerd comments** every 25 duels (optional).
+- **Boot Camp page** for on-demand AI assessment of your current Top 50.
+- Supports **OpenAI** and **Gemini**, selectable in Settings.
 
 ---
 
@@ -29,14 +72,6 @@ Inspired by Flickchart, but built for music nerds.
   <img src="docs/screenshots/rankings.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
 </p>
 
-<p align="center">
-  <em>Face-offs that define your taste • A ranking system that remembers everything</em>
-</p>
-
-<br>
-
----
-
 ### ⚙️ Control Center
 
 <p align="center">
@@ -44,20 +79,11 @@ Inspired by Flickchart, but built for music nerds.
   <img src="docs/screenshots/import.png" width="47%" style="border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.12); margin:10px;">
 </p>
 
-<p align="center">
-  <em>Fine-tune your engine • Import your listening history • Let the AI judge you</em>
-</p>
-
 ---
 
-## 🚀 Quick Start (The Easy Way)
+## 🚀 Quick Start (Docker)
 
-The fastest way to get started is using the pre-built Docker image.  
-You don't even need to clone the code!
-
-### 1️⃣ Create a file named `docker-compose.yml`
-
-Paste this inside:
+### 1) `docker-compose.yml`
 
 ```yaml
 version: '3.8'
@@ -74,76 +100,80 @@ services:
     restart: unless-stopped
 ```
 
-### 2️⃣ Launch the app
-
-Run this command in your terminal from the same folder:
+### 2) Start
 
 ```bash
 docker-compose up -d
 ```
 
-### 3️⃣ Open your browser
+### 3) Open
 
-```
+```text
 http://localhost:8989
 ```
-
-Start ranking! 🎶
 
 ---
 
 ## ⚙️ Configuration
 
-On your first launch, click on **⚙️ Settings** to set up your engine:
+Use **Settings** in the UI for all runtime configuration.
 
-### 🔑 Last.fm API Key
-Required for:
-- Album artwork  
-- Genre metadata  
-- Scrobble imports  
+### Integrations
+- Last.fm API key
+- ListenBrainz API key + optional default username
+- OpenAI API key + model
+- Gemini API key + model
 
-### 🤖 AI Provider
-Provide an **OpenAI** or **Gemini** API key to enable the AI Nerd.
+### Behavior toggles
+- Enable/disable AI nerd comments
+- Active AI provider
+- Duel matchmaking category weights
+- Import minimum plays threshold
 
-### 🎚 Import Thresholds
-Set minimum play counts required for an album to be eligible for duels.
-
----
-
-## 📂 Data Persistence
-
-Your data is stored locally in the folder where you created your `docker-compose.yml`:
-
-```
-/data   → Contains API keys, settings, and elo_state.csv rankings
-/cache  → Stores downloaded album artwork
-```
-
-### 💾 Backup Tip
-To move your rankings to a new computer, simply copy the `/data` folder.
+> Settings are persisted in `data/settings.json`.
 
 ---
 
+## 📂 Data & Persistence
 
-## 🧪 Dev-only Performance Logging
+Mounted directories:
 
-For local troubleshooting you can enable lightweight timing logs on duel requests.
+```text
+/data   -> CSV state + settings + bootcamp history + optional perf log
+/cache  -> cached metadata JSON + downloaded cover images
+```
+
+Main files:
+
+```text
+data/elo_state.csv          # Duel database
+data/listening_queue.csv    # Queue database
+data/settings.json          # App settings
+data/bootcamp_last.json     # Last bootcamp output + short history
+```
+
+Backup/migration: copy `/data` and `/cache`.
+
+---
+
+## 🧪 Dev: performance logging (optional)
+
+Enable lightweight request timing logs:
 
 ```bash
 APP_ENV=dev DEV_PERF_LOG=1
 ```
 
-When enabled, the app writes JSON-lines timing entries to:
+Output file:
 
-```
+```text
 data/dev_perf.log
 ```
 
-This is **disabled by default**, so normal Docker runs are unaffected unless you explicitly set those env vars.
+Disabled by default.
 
 ---
 
 ## 📜 License
 
-MIT License.  
-Rank your music, defend your taste — and don’t take the AI’s roasts too personally.
+MIT License.
