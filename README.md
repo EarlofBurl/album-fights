@@ -58,7 +58,7 @@ Inspired by Flickchart, but focused on albums.
   - pagination (100 per page)
   - CSV export of current sorting
 
-### Database tools (new tab)
+### Database tools
 - **Tag Blacklisting**:
   - maintain a blacklist of noisy metadata tags (e.g. from Last.fm)
   - blacklisted tags are excluded from stats and album metadata display
