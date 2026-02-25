@@ -71,8 +71,9 @@ foreach ($albums as $a) {
         $info = json_decode(file_get_contents($jsonFile), true);
         
         // Aggregate genres
-        if (!empty($info['genres'])) {
-            foreach ($info['genres'] as $genre) {
+        $albumGenres = applyTagBlacklist($info['genres'] ?? []);
+        if (!empty($albumGenres)) {
+            foreach ($albumGenres as $genre) {
                 $g = ucwords(strtolower($genre));
                 if (!isset($genreStats[$g])) $genreStats[$g] = ['elo_sum' => 0, 'count' => 0];
                 $genreStats[$g]['elo_sum'] += $a['Elo'];

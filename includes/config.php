@@ -45,6 +45,7 @@ $defaultSettings = [
     'openai_model' => 'gpt-4o-mini',
     'nerd_comments_enabled' => true,
     'import_min_plays' => 8,
+    'tag_blacklist' => [],
     'duel_category_weights' => [
         'top_25_vs' => 20,
         'top_50_vs' => 20,
