@@ -174,9 +174,7 @@ require_once 'includes/header.php';
         <a class="btn-small" href="list.php?<?= htmlspecialchars(http_build_query(['sort' => $sortBy, 'order' => $order, 'export' => 'csv'])) ?>" style="background: var(--accent); color: #000; text-decoration: none; display: inline-block;">⬇️ Export CSV</a>
     </div>
 
-    <p style="margin-top: 0; color: var(--text-muted);">Showing entries <?= $totalAlbums === 0 ? 0 : $offset + 1 ?> - <?= min($offset + $perPage, $totalAlbums) ?> of <?= $totalAlbums ?>.</p>
-
-    <h3 style="margin: 0 0 8px;">Top 25 Snapshot</h3>
+    <h3 style="margin: 0 0 8px;">Top 25</h3>
     <?php if (empty($topAlbums)): ?>
         <p style="margin: 0 0 22px; color: var(--text-muted);">No albums available yet.</p>
     <?php else: ?>
@@ -207,7 +205,10 @@ require_once 'includes/header.php';
         </div>
     <?php endif; ?>
 
-    <h3 style="margin: 0 0 10px;">Full List</h3>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;">
+        <h3 style="margin: 0;">Full List</h3>
+        <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">Showing entries <?= $totalAlbums === 0 ? 0 : $offset + 1 ?> - <?= min($offset + $perPage, $totalAlbums) ?> of <?= $totalAlbums ?>.</p>
+    </div>
 
     <div class="top-list" style="max-width: 100%; margin-top: 0;">
         <table>
