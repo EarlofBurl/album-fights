@@ -19,6 +19,39 @@ function getAlbumCacheBaseName($artist, $album) {
     return "album_" . $hash;
 }
 
+function getPreferredMusicService(): string {
+    global $APP_SETTINGS;
+
+    if (!empty(LASTFM_API_KEY)) {
+        return 'lastfm';
+    }
+
+    $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
+    if ($listenbrainzConfigured) {
+        return 'listenbrainz';
+    }
+
+    return 'lastfm';
+}
+
+function getArtistExternalUrl(string $artist): string {
+    $service = getPreferredMusicService();
+    if ($service === 'listenbrainz') {
+        return 'https://listenbrainz.org/search/?query=' . rawurlencode($artist) . '&type=artist';
+    }
+
+    return 'https://www.last.fm/music/' . rawurlencode($artist);
+}
+
+function getAlbumExternalUrl(string $artist, string $album): string {
+    $service = getPreferredMusicService();
+    if ($service === 'listenbrainz') {
+        return 'https://listenbrainz.org/search/?query=' . rawurlencode(trim($artist . ' ' . $album)) . '&type=release';
+    }
+
+    return 'https://www.last.fm/music/' . rawurlencode($artist) . '/' . rawurlencode($album);
+}
+
 
 function normalizeTagValue($value) {
     $value = strtolower(trim((string)$value));
