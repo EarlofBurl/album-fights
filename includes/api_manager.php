@@ -1,39 +1,10 @@
 <?php
 require_once 'config.php';
 
-function isDesktopMode() {
-    return getenv('ALBUMFIGHTS_DESKTOP') === '1'
-        || getenv('FLATPAK_ID')
-        || getenv('ELECTRON_RUN_AS_NODE');
-}
-
-function cacheDebug($message, $context = []) {
-    if (!isDesktopMode()) {
-        return;
-    }
-
-    $line = '[' . date('c') . '] ' . $message;
-
-    if (!empty($context)) {
-        $json = json_encode(
-            $context,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
-        );
-
-        if ($json === false) {
-            $json = '{"debug_json_error":"' . json_last_error_msg() . '"}';
-        }
-
-        $line .= ' ' . $json;
-    }
-
-    @file_put_contents(DIR_DATA . 'cache-debug.log', $line . PHP_EOL, FILE_APPEND);
-}
-
-// Smarte Weiche: SSL-Bypass nur für gepackte Desktop-Apps,
+// Smarte Weiche: SSL-Bypass nur für gepackte Desktop-Apps, 
 // damit im Docker-Container die API-Keys sicher bleiben!
 function getSslOptionsForDesktop() {
-    if (isDesktopMode()) {
+    if (getenv('APP_USER_DATA_PATH') || getenv('FLATPAK_ID') || getenv('APPDATA') || getenv('ELECTRON_RUN_AS_NODE')) {
         return [
             'verify_peer' => false,
             'verify_peer_name' => false
@@ -47,6 +18,7 @@ function getAlbumCacheBaseName($artist, $album) {
     $hash = md5(strtolower($artist . "_" . $album));
     return "album_" . $hash;
 }
+
 
 function normalizeTagValue($value) {
     $value = strtolower(trim((string)$value));
@@ -84,19 +56,6 @@ function applyTagBlacklist($genres) {
     return array_values(array_unique($filtered));
 }
 
-function writeCacheFileWithDebug($path, $content, $kind = 'file') {
-    $written = @file_put_contents($path, $content);
-
-    cacheDebug($kind . '.write', [
-        'file' => $path,
-        'bytes_written' => $written,
-        'file_exists' => file_exists($path),
-        'content_length' => is_string($content) ? strlen($content) : 0
-    ]);
-
-    return $written !== false;
-}
-
 function fetchJsonWithHeaders($url, $headers = [], $timeout = 20) {
     $opts = [
         'http' => [
@@ -113,27 +72,11 @@ function fetchJsonWithHeaders($url, $headers = [], $timeout = 20) {
 
     $response = @file_get_contents($url, false, stream_context_create($opts));
     if ($response === false) {
-        $lastError = error_get_last();
-        cacheDebug('http.json.failed', [
-            'url' => $url,
-            'timeout' => $timeout,
-            'headers' => $headers,
-            'error' => $lastError['message'] ?? 'unknown'
-        ]);
         return null;
     }
 
     $decoded = json_decode($response, true);
-    if (!is_array($decoded)) {
-        cacheDebug('http.json.decode_failed', [
-            'url' => $url,
-            'json_error' => json_last_error_msg(),
-            'response_preview' => substr($response, 0, 500)
-        ]);
-        return null;
-    }
-
-    return $decoded;
+    return is_array($decoded) ? $decoded : null;
 }
 
 function fetchBinaryWithHeaders($url, $headers = [], $timeout = 12) {
@@ -151,24 +94,9 @@ function fetchBinaryWithHeaders($url, $headers = [], $timeout = 12) {
     }
 
     $response = @file_get_contents($url, false, stream_context_create($opts));
-    if ($response === false) {
-        $lastError = error_get_last();
-        cacheDebug('http.binary.failed', [
-            'url' => $url,
-            'timeout' => $timeout,
-            'headers' => $headers,
-            'error' => $lastError['message'] ?? 'unknown'
-        ]);
-        return null;
-    }
-
-    cacheDebug('http.binary.ok', [
-        'url' => $url,
-        'bytes' => strlen($response)
-    ]);
-
-    return $response;
+    return $response === false ? null : $response;
 }
+
 
 function getSubsonicCredentials() {
     global $APP_SETTINGS;
@@ -383,8 +311,6 @@ function fetchListenbrainzAlbumData($artist, $album) {
         return null;
     }
 
-    // ListenBrainz itself is built on MusicBrainz data; use MusicBrainz WS + CoverArtArchive
-    // as the metadata layer for this fallback tier.
     $query = sprintf('artist:"%s" AND release:"%s"', $artist, $album);
     $url = 'https://musicbrainz.org/ws/2/release/?query=' . urlencode($query) . '&fmt=json&limit=1';
     $decoded = fetchJsonWithHeaders($url, ['User-Agent: AlbumDuelApp/1.0 (listenbrainz-fallback)']);
@@ -433,31 +359,16 @@ function getAlbumData($artist, $album) {
 
     $jsonFile = DIR_CACHE . $safeName . '.json';
     $imgFile = DIR_CACHE . $safeName . '.jpg';
-    $imgUrl = 'cover.php?file=' . rawurlencode($safeName . '.jpg');
+    
+    // NEU: Wir laden die Bilder über das Proxy-Skript
+    $imgUrl = 'serve_image.php?file=' . urlencode($safeName . '.jpg');
 
     $now = time();
     $refreshCooldownSeconds = 60 * 60 * 24 * 7; // one week
 
-    if (!is_dir(DIR_CACHE)) {
-        @mkdir(DIR_CACHE, 0777, true);
-    }
-
-    cacheDebug('getAlbumData.start', [
-        'artist' => $artist,
-        'album' => $album,
-        'DIR_DATA' => DIR_DATA,
-        'DIR_CACHE' => DIR_CACHE,
-        'jsonFile' => $jsonFile,
-        'imgFile' => $imgFile,
-        'cache_exists' => is_dir(DIR_CACHE),
-        'cache_writable' => is_writable(DIR_CACHE)
-    ]);
-
     // 1. Load cache
     if (file_exists($jsonFile)) {
-        $rawCache = @file_get_contents($jsonFile);
-        $data = json_decode($rawCache, true);
-
+        $data = json_decode(file_get_contents($jsonFile), true);
         if (is_array($data)) {
             if (file_exists($imgFile)) {
                 $data['local_image'] = $imgUrl;
@@ -476,15 +387,6 @@ function getAlbumData($artist, $album) {
             $cooldownActive = $lastRefreshAttempt > 0 && ($now - $lastRefreshAttempt) < $refreshCooldownSeconds;
             $refreshNeeded = $shouldRefreshOldItunesCache || $shouldRefreshForListenbrainzEnrichment;
 
-            cacheDebug('cache.hit.raw', [
-                'artist' => $artist,
-                'album' => $album,
-                'source' => $source,
-                'refresh_needed' => $refreshNeeded,
-                'cooldown_active' => $cooldownActive,
-                'has_img_file' => file_exists($imgFile)
-            ]);
-
             if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && (!$refreshNeeded || $cooldownActive)) {
                 $data['genres'] = applyTagBlacklist($data['genres'] ?? []);
                 devPerfLog('album_data.cache_hit', [
@@ -495,12 +397,6 @@ function getAlbumData($artist, $album) {
                 ]);
                 return $data;
             }
-        } else {
-            cacheDebug('cache.json.invalid', [
-                'file' => $jsonFile,
-                'json_error' => json_last_error_msg(),
-                'raw_preview' => is_string($rawCache) ? substr($rawCache, 0, 500) : ''
-            ]);
         }
     }
 
@@ -536,10 +432,9 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($subsonicData['cover_id'])) {
                 $imgData = downloadSubsonicCoverArt($subsonicData['cover_id']);
                 if ($imgData !== null) {
-                    if (writeCacheFileWithDebug($imgFile, $imgData, 'image.subsonic')) {
-                        $result['local_image'] = $imgUrl;
-                        $foundImage = true;
-                    }
+                    file_put_contents($imgFile, $imgData);
+                    $result['local_image'] = $imgUrl;
+                    $foundImage = true;
                 }
             }
 
@@ -595,11 +490,10 @@ function getAlbumData($artist, $album) {
 
                         $imgData = fetchBinaryWithHeaders((string)$img['#text'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                         if ($imgData !== null) {
-                            if (writeCacheFileWithDebug($imgFile, $imgData, 'image.lastfm')) {
-                                $result['local_image'] = $imgUrl;
-                                $foundImage = true;
-                                break;
-                            }
+                            file_put_contents($imgFile, $imgData);
+                            $result['local_image'] = $imgUrl;
+                            $foundImage = true;
+                            break;
                         }
                     }
                 }
@@ -615,7 +509,7 @@ function getAlbumData($artist, $album) {
     $listenbrainzConfigured = !empty(LISTENBRAINZ_API_KEY) || !empty($APP_SETTINGS['listenbrainz_username']);
     $needsFallback = !$foundImage || !hasCoreAlbumMetadata($result);
     $needsEnrichment = empty($result['year']) || empty($result['genres']);
-
+    
     if ($listenbrainzConfigured && ($needsFallback || $needsEnrichment)) {
         $listenbrainzData = fetchListenbrainzAlbumData($artist, $album);
         if (is_array($listenbrainzData)) {
@@ -630,10 +524,9 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($listenbrainzData['image_url'])) {
                 $imgData = fetchBinaryWithHeaders($listenbrainzData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                 if ($imgData !== null) {
-                    if (writeCacheFileWithDebug($imgFile, $imgData, 'image.listenbrainz')) {
-                        $result['local_image'] = $imgUrl;
-                        $foundImage = true;
-                    }
+                    file_put_contents($imgFile, $imgData);
+                    $result['local_image'] = $imgUrl;
+                    $foundImage = true;
                 }
             }
 
@@ -675,10 +568,9 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($itunesData['image_url'])) {
                 $imgData = fetchBinaryWithHeaders($itunesData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                 if ($imgData !== null) {
-                    if (writeCacheFileWithDebug($imgFile, $imgData, 'image.itunes')) {
-                        $result['local_image'] = $imgUrl;
-                        $foundImage = true;
-                    }
+                    file_put_contents($imgFile, $imgData);
+                    $result['local_image'] = $imgUrl;
+                    $foundImage = true;
                 }
             }
 
@@ -694,31 +586,7 @@ function getAlbumData($artist, $album) {
 
     $result['genres'] = applyTagBlacklist($result['genres'] ?? []);
 
-    $json = json_encode(
-        $result,
-        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
-    );
-
-    if ($json === false) {
-        cacheDebug('json.encode.failed', [
-            'artist' => $artist,
-            'album' => $album,
-            'json_error' => json_last_error_msg(),
-            'result_preview' => $result
-        ]);
-    } else {
-        writeCacheFileWithDebug($jsonFile, $json, 'json.album');
-    }
-
-    cacheDebug('getAlbumData.end', [
-        'artist' => $artist,
-        'album' => $album,
-        'metadata_source' => $result['metadata_source'] ?? '',
-        'has_local_image' => !empty($result['local_image']),
-        'genres_count' => is_array($result['genres']) ? count($result['genres']) : 0,
-        'year' => $result['year'] ?? '',
-        'elapsed_ms' => round((microtime(true) - $fnStart) * 1000, 2)
-    ]);
+    file_put_contents($jsonFile, json_encode($result));
 
     devPerfLog('album_data.refresh', [
         'artist' => $artist,
@@ -733,7 +601,7 @@ function getAlbumData($artist, $album) {
 
 function triggerNerdComment($recentPicksText) {
     global $APP_SETTINGS;
-
+    
     if (!$APP_SETTINGS['nerd_comments_enabled']) {
         return false;
     }
@@ -761,7 +629,7 @@ function triggerBootcampComment($top50Text, $top50History = [], $commentHistory 
             $historyBlock .= "--- Comment " . ($index + 1) . " ---\n" . $comment . "\n\n";
         }
     }
-
+    
     $prompt = "You are a highly opinionated, incredibly knowledgeable, and slightly snobbish music critic (think Anthony Fantano or a seasoned Pitchfork reviewer). You are reviewing my current Top 50 albums list:\n\n" . $top50Text . "\n\n";
     $prompt .= $historyBlock;
     $prompt .= "Analyze this Top 50 list in earnest. Use the history to comment on taste evolution and recurring patterns over time. Drop any military or drill instructor vibes; you are a pure, passionate music nerd. Keep the tone snobbish, arrogant-but-kind, witty, and analytical. Point out the genuinely great picks and praise the highlights, but don't hold back on critiques of basic, overrated, or questionable choices. Suggest superior alternatives (e.g., 'how can you listen to X when Y exists?'). Point out missing genres, glaring omissions of essential classics, and extreme biases toward specific eras or artists. Include at least one concrete comparison to earlier snapshots (for example: an artist appearing less often now). End with a Fantano-style overall score from 1 to 10 in a clear format like 'Score: 7/10'. Max 380 words. English only.";
@@ -771,7 +639,7 @@ function triggerBootcampComment($top50Text, $top50History = [], $commentHistory 
 
 function callAIProvider($prompt) {
     global $APP_SETTINGS;
-
+    
     $sslOpts = getSslOptionsForDesktop();
 
     if ($APP_SETTINGS['ai_provider'] === 'openai') {
@@ -790,13 +658,11 @@ function callAIProvider($prompt) {
                 'content' => json_encode($data)
             ]
         ];
-        if (!empty($sslOpts)) {
-            $options['ssl'] = $sslOpts;
-        }
+        if (!empty($sslOpts)) $options['ssl'] = $sslOpts;
 
         $context = stream_context_create($options);
         $response = @file_get_contents($url, false, $context);
-
+        
         if ($response) {
             $res = json_decode($response, true);
             return $res['choices'][0]['message']['content'] ?? false;
@@ -811,19 +677,17 @@ function callAIProvider($prompt) {
                 'content' => json_encode($data)
             ]
         ];
-        if (!empty($sslOpts)) {
-            $options['ssl'] = $sslOpts;
-        }
+        if (!empty($sslOpts)) $options['ssl'] = $sslOpts;
 
         $context = stream_context_create($options);
         $response = @file_get_contents($url, false, $context);
-
+        
         if ($response) {
             $res = json_decode($response, true);
             return $res['candidates'][0]['content']['parts'][0]['text'] ?? false;
         }
     }
-
+    
     return false;
 }
 ?>
