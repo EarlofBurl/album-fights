@@ -3,48 +3,39 @@ session_start();
 
 // --- SMART PATH RESOLUTION (Web/Docker vs Desktop) ---
 
-// Standard: Web / Docker / Dev VM
+// 1. Dein funktionierender Standard (Web / Docker / Dev VM)
 $dataDir = __DIR__ . '/../data/';
 $cacheDir = __DIR__ . '/../cache/';
 
-// Desktop: explizite Pfade aus Electron haben höchste Priorität
-if (getenv('ALBUMFIGHTS_DESKTOP') === '1') {
-    $envData = getenv('ALBUMFIGHTS_DATA_DIR') ?: '';
-    $envCache = getenv('ALBUMFIGHTS_CACHE_DIR') ?: '';
+// Versuche den Pfad aus verschiedenen Quellen zu lesen (getenv oder $_SERVER)
+// Wichtig für Electron unter Linux/Mac, falls getenv() mal leer bleibt
+$electronPath = getenv('APP_USER_DATA_PATH') ?: ($_SERVER['APP_USER_DATA_PATH'] ?? '');
 
-    if ($envData !== '') {
-        $dataDir = rtrim(str_replace('\\', '/', $envData), '/') . '/';
-    }
-
-    if ($envCache !== '') {
-        $cacheDir = rtrim(str_replace('\\', '/', $envCache), '/') . '/';
-    }
-}
-// Fallbacks für ältere Desktop-Builds
-elseif (getenv('FLATPAK_ID')) {
-    $dataDir = rtrim(getenv('XDG_DATA_HOME'), '/') . '/AlbumFightsData/';
-    $cacheDir = rtrim(getenv('XDG_CACHE_HOME'), '/') . '/AlbumFightsCache/';
+// 2. Desktop-Overrides
+if (!empty($electronPath)) {
+    // Linux AppImage / Mac
+    $basePath = rtrim(str_replace('\\', '/', $electronPath), '/');
+    $dataDir = $basePath . '/AlbumFightsData/';
+    $cacheDir = $basePath . '/AlbumFightsCache/';
 } elseif (getenv('APPDATA')) {
+    // WINDOWS HOLZHAMMER: Nutzt die nativen Systemvariablen, die PHP niemals ignorieren kann!
+    // Roaming für die Config/CSV, Local für den großen Bild-Cache
     $dataDir = str_replace('\\', '/', getenv('APPDATA')) . '/AlbumFights/data/';
     $cacheDir = str_replace('\\', '/', getenv('LOCALAPPDATA')) . '/AlbumFights/cache/';
-} elseif (PHP_OS_FAMILY === 'Darwin' && getenv('HOME')) {
-    $dataDir = rtrim(getenv('HOME'), '/') . '/Library/Application Support/AlbumFights/data/';
-    $cacheDir = rtrim(getenv('HOME'), '/') . '/Library/Caches/AlbumFights/';
+} elseif (getenv('FLATPAK_ID')) {
+    // Linux Flatpak Fallback (falls manuell gesetzt)
+    $dataDir = rtrim(getenv('XDG_DATA_HOME'), '/') . '/AlbumFightsData/';
+    $cacheDir = rtrim(getenv('XDG_CACHE_HOME'), '/') . '/AlbumFightsCache/';
 }
 
+// Konstanten setzen
 define('DIR_DATA', $dataDir);
 define('DIR_CACHE', $cacheDir);
 
-define('FILE_ELO', DIR_DATA . 'elo_state.csv');
-define('FILE_QUEUE', DIR_DATA . 'listening_queue.csv');
-define('FILE_SETTINGS', DIR_DATA . 'settings.json');
+// Ordner automatisch anlegen, falls sie noch nicht existieren
+if (!is_dir(DIR_CACHE)) mkdir(DIR_CACHE, 0777, true);
+if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
 
-if (!is_dir(DIR_CACHE)) {
-    mkdir(DIR_CACHE, 0777, true);
-}
-if (!is_dir(DIR_DATA)) {
-    mkdir(DIR_DATA, 0777, true);
-}
 
 define('APP_ENV', getenv('APP_ENV') ?: 'prod');
 define('DEV_PERF_LOG_ENABLED', APP_ENV === 'dev' && getenv('DEV_PERF_LOG') === '1');
@@ -64,6 +55,8 @@ function devPerfLog($event, $context = []) {
     @file_put_contents(DEV_PERF_LOG_FILE, json_encode($payload, JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
 }
 
+
+// Default settings with current models
 $defaultSettings = [
     'lastfm_api_key' => getenv('LASTFM_API_KEY') ?: '',
     'listenbrainz_api_key' => getenv('LISTENBRAINZ_API_KEY') ?: '',
@@ -73,7 +66,7 @@ $defaultSettings = [
     'subsonic_password' => getenv('SUBSONIC_PASSWORD') ?: '',
     'gemini_api_key' => getenv('GEMINI_API_KEY') ?: '',
     'openai_api_key' => getenv('OPENAI_API_KEY') ?: '',
-    'ai_provider' => 'gemini',
+    'ai_provider' => 'gemini', 
     'gemini_model' => 'gemini-3-flash-preview',
     'openai_model' => 'gpt-4o-mini',
     'nerd_comments_enabled' => true,
@@ -89,6 +82,7 @@ $defaultSettings = [
     ]
 ];
 
+// Load settings or create new
 if (file_exists(FILE_SETTINGS)) {
     $userSettings = json_decode(file_get_contents(FILE_SETTINGS), true) ?: [];
     $APP_SETTINGS = array_merge($defaultSettings, $userSettings);
@@ -97,6 +91,7 @@ if (file_exists(FILE_SETTINGS)) {
     file_put_contents(FILE_SETTINGS, json_encode($APP_SETTINGS, JSON_PRETTY_PRINT));
 }
 
+// For backwards compatibility in the rest of the code
 define('LASTFM_API_KEY', $APP_SETTINGS['lastfm_api_key']);
 define('GEMINI_API_KEY', $APP_SETTINGS['gemini_api_key']);
 define('OPENAI_API_KEY', $APP_SETTINGS['openai_api_key']);
