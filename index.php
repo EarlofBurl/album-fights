@@ -47,12 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $idxA = isset($_POST['idxA']) ? (int)$_POST['idxA'] : null;
     $idxB = isset($_POST['idxB']) ? (int)$_POST['idxB'] : null;
+    $shouldResetCurrentDuel = true;
 
     if ($action === 'reload_metadata') {
         $targetIdx = (int)($_POST['targetIdx'] ?? -1);
         if (isset($albums[$targetIdx])) {
             getAlbumData($albums[$targetIdx]['Artist'], $albums[$targetIdx]['Album'], true);
         }
+        $shouldResetCurrentDuel = false;
     } elseif ($action === 'vote') {
         if (isset($albums[$idxA], $albums[$idxB])) {
             unset($_SESSION['keep_artist'], $_SESSION['keep_album']);
@@ -112,8 +114,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     
-    // Clear the current session duel to force a new draw
-    unset($_SESSION['current_duel']);
+    // Clear the current session duel to force a new draw (except metadata reload)
+    if ($shouldResetCurrentDuel) {
+        unset($_SESSION['current_duel']);
+    }
 
     // Redirect to prevent form resubmission unless we have a review text to show
     if (empty($review_text)) {
