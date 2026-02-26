@@ -71,7 +71,8 @@ function getCachedCoverUrl(string $artist, string $album): string {
     $cacheFilePath = DIR_CACHE . $cacheBaseName . '.jpg';
 
     if (file_exists($cacheFilePath)) {
-        return 'cache/' . $cacheBaseName . '.jpg';
+        // NEU: Jetzt routen wir das Bild sauber durch unseren Proxy
+        return 'serve_image.php?file=' . urlencode($cacheBaseName . '.jpg');
     }
 
     return '';
