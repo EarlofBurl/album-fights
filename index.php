@@ -9,6 +9,24 @@ $albums = loadCsv(FILE_ELO);
 $albumsLoadMs = round((microtime(true) - $albumsLoadStartedAt) * 1000, 2);
 $review_text = "";
 
+// Dynamischer K-Faktor (Angepasst an deine aktuelle DB-Verteilung)
+function getKFactor($elo, $duels) {
+    if ($duels < 10) return 40;     // Volatilität für neue Alben (schnelle Einordnung)
+    if ($elo >= 1350) return 16;    // Olymp (Top 10 Bereich bei dir): Sehr stabil, schützt vor harten Abstürzen
+    if ($elo >= 1280) return 24;    // Top-Tier (Erweitertes Spitzenfeld): Schwerere Aufstiege
+    return 32;                      // Standard fürs Mittelfeld
+}
+
+// Visuelle Klassen für die Top-Ränge
+function getRankClass($rank) {
+    if ($rank === 1) return 'tier-platinum';
+    if ($rank === 2) return 'tier-gold';
+    if ($rank === 3) return 'tier-bronze';
+    if ($rank <= 10) return 'tier-top10';
+    if ($rank <= 25) return 'tier-top25';
+    return '';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $idxA = isset($_POST['idxA']) ? (int)$_POST['idxA'] : null;
@@ -31,10 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             if (count($_SESSION['recent_picks']) > 25) array_shift($_SESSION['recent_picks']);
 
+            // Individueller K-Faktor wird für beide Seiten berechnet
+            $kFactorA = getKFactor($albumA['Elo'], $albumA['Duels']);
+            $kFactorB = getKFactor($albumB['Elo'], $albumB['Duels']);
+
             $expectedA = 1 / (1 + pow(10, (($albumB['Elo'] - $albumA['Elo']) / 400)));
-            $newRatingA = $albumA['Elo'] + 32 * ($scoreA - $expectedA);
+            $newRatingA = $albumA['Elo'] + $kFactorA * ($scoreA - $expectedA);
+            
             $expectedB = 1 / (1 + pow(10, (($albumA['Elo'] - $albumB['Elo']) / 400)));
-            $newRatingB = $albumB['Elo'] + 32 * ((1 - $scoreA) - $expectedB);
+            $newRatingB = $albumB['Elo'] + $kFactorB * ((1 - $scoreA) - $expectedB);
             
             $albums[$idxA]['Elo'] = $newRatingA;
             $albums[$idxB]['Elo'] = $newRatingB;
@@ -290,17 +313,17 @@ require_once 'includes/header.php';
 
 <?php if (empty($review_text) && $total >= 2): ?>
     <div class="duel-container">
-        <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); display: flex; flex-direction: column;">
+        <div class="duel-card <?= getRankClass($albumA['Rank']) ?>">
             <div class="duel-rank-badge">#<?= $albumA['Rank'] ?></div>
-            <h2 style="color: var(--accent); margin-top: 0;"><?= htmlspecialchars($albumA['Artist']) ?></h2>
+            <h2 class="artist-name"><?= htmlspecialchars($albumA['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumA['Album']) ?></h3>
             
-            <div style="font-size: 0.8rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px;">
+            <div style="font-size: 0.8rem; margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px; color: var(--accent);">
                 <?= !empty($infoA['year']) ? htmlspecialchars($infoA['year']) . ' • ' : '' ?>
                 <?= !empty($infoA['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoA['genres'], 0, 4))) : 'No genres found' ?>
             </div>
             
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0;">Elo: <?= round($albumA['Elo']) ?> | Plays: <?= $albumA['Playcount'] ?></p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumA['Elo']) ?> | Plays: <?= $albumA['Playcount'] ?></p>
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoA['local_image'])): ?>
@@ -319,7 +342,7 @@ require_once 'includes/header.php';
                 <input type="hidden" name="idxA" value="<?= $albumA['OriginalIndex'] ?>">
                 <input type="hidden" name="idxB" value="<?= $albumB['OriginalIndex'] ?>">
                 <input type="hidden" name="scoreA" value="1">
-                <button type="submit" style="width: 100%; padding: 15px; font-size: 1.2rem; background-color: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px;">
+                <button type="submit" class="btn-vote">
                     🏆 Choose A
                 </button>
             </form>
@@ -355,17 +378,17 @@ require_once 'includes/header.php';
             </form>
         </div>
 
-        <div style="flex: 1; background: var(--card-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--border); display: flex; flex-direction: column;">
+        <div class="duel-card <?= getRankClass($albumB['Rank']) ?>">
             <div class="duel-rank-badge">#<?= $albumB['Rank'] ?></div>
-            <h2 style="color: var(--accent); margin-top: 0;"><?= htmlspecialchars($albumB['Artist']) ?></h2>
+            <h2 class="artist-name"><?= htmlspecialchars($albumB['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumB['Album']) ?></h3>
             
-            <div style="font-size: 0.8rem; color: var(--accent); margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px;">
+            <div style="font-size: 0.8rem; margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px; color: var(--accent);">
                 <?= !empty($infoB['year']) ? htmlspecialchars($infoB['year']) . ' • ' : '' ?>
                 <?= !empty($infoB['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoB['genres'], 0, 4))) : 'No genres found' ?>
             </div>
 
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0;">Elo: <?= round($albumB['Elo']) ?> | Plays: <?= $albumB['Playcount'] ?></p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumB['Elo']) ?> | Plays: <?= $albumB['Playcount'] ?></p>
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoB['local_image'])): ?>
@@ -384,7 +407,7 @@ require_once 'includes/header.php';
                 <input type="hidden" name="idxA" value="<?= $albumA['OriginalIndex'] ?>">
                 <input type="hidden" name="idxB" value="<?= $albumB['OriginalIndex'] ?>">
                 <input type="hidden" name="scoreA" value="0">
-                <button type="submit" style="width: 100%; padding: 15px; font-size: 1.2rem; background-color: var(--accent); color: #000; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px;">
+                <button type="submit" class="btn-vote">
                     🏆 Choose B
                 </button>
             </form>

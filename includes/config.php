@@ -1,12 +1,36 @@
 <?php
 session_start();
 
-define('DIR_DATA', __DIR__ . '/../data/');
-define('DIR_CACHE', __DIR__ . '/../cache/');
+// --- SMART PATH RESOLUTION (Web/Docker vs Desktop) ---
+
+// 1. Dein funktionierender Standard (Web / Docker / Dev VM)
+$dataDir = __DIR__ . '/../data/';
+$cacheDir = __DIR__ . '/../cache/';
+
+// 2. Desktop-Overrides (Diese greifen NUR, wenn die App verpackt auf dem Desktop läuft)
+if (getenv('FLATPAK_ID')) {
+    // Linux Flatpak
+    $dataDir = rtrim(getenv('XDG_DATA_HOME'), '/') . '/AlbumFightsData/';
+    $cacheDir = rtrim(getenv('XDG_CACHE_HOME'), '/') . '/AlbumFightsCache/';
+} elseif (getenv('APPDATA')) {
+    // Windows Desktop (.exe)
+    $dataDir = str_replace('\\', '/', getenv('APPDATA')) . '/AlbumFights/data/';
+    $cacheDir = str_replace('\\', '/', getenv('LOCALAPPDATA')) . '/AlbumFights/cache/';
+} elseif (PHP_OS_FAMILY === 'Darwin' && getenv('HOME') && getenv('ELECTRON_RUN_AS_NODE')) {
+    // macOS Desktop (.dmg)
+    $dataDir = rtrim(getenv('HOME'), '/') . '/Library/Application Support/AlbumFights/data/';
+    $cacheDir = rtrim(getenv('HOME'), '/') . '/Library/Caches/AlbumFights/';
+}
+
+// Konstanten setzen
+define('DIR_DATA', $dataDir);
+define('DIR_CACHE', $cacheDir);
+
 define('FILE_ELO', DIR_DATA . 'elo_state.csv');
 define('FILE_QUEUE', DIR_DATA . 'listening_queue.csv');
 define('FILE_SETTINGS', DIR_DATA . 'settings.json');
 
+// Ordner automatisch anlegen, falls sie noch nicht existieren
 if (!is_dir(DIR_CACHE)) mkdir(DIR_CACHE, 0777, true);
 if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
 
