@@ -366,8 +366,7 @@ function getAlbumData($artist, $album) {
 
     $jsonFile = DIR_CACHE . $safeName . '.json';
     $imgFile = DIR_CACHE . $safeName . '.jpg';
-    $imgUrl = 'cache/' . $safeName . '.jpg';
-
+    $imgUrl = 'cover.php?file=' . rawurlencode($safeName . '.jpg'); 
     $now = time();
     $refreshCooldownSeconds = 60 * 60 * 24 * 7; // one week
 
