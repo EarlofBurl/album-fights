@@ -1,6 +1,8 @@
 # Ignore user data and caches so API keys and personal lists aren't uploaded
 data/*
 cache/*
+node_modules/
+dist/
 
 # Keep the folders themselves in the repo, just not their contents
 !data/.gitkeep
