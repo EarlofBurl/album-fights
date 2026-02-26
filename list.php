@@ -195,12 +195,14 @@ require_once 'includes/header.php';
                 <div class="<?= htmlspecialchars($cardClasses) ?>">
                     <span class="top25-rank">#<?= $rank ?></span>
                     <?php if ($coverUrl !== ''): ?>
-                        <img class="top25-cover" src="<?= htmlspecialchars($coverUrl) ?>" alt="Cover: <?= htmlspecialchars($album['Artist'] . ' - ' . $album['Album']) ?>">
+                        <a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: block;">
+                            <img class="top25-cover" src="<?= htmlspecialchars($coverUrl) ?>" alt="Cover: <?= htmlspecialchars($album['Artist'] . ' - ' . $album['Album']) ?>">
+                        </a>
                     <?php else: ?>
                         <div class="top25-cover-placeholder">No cover cached</div>
                     <?php endif; ?>
-                    <div class="top25-title"><?= htmlspecialchars($album['Album']) ?></div>
-                    <div class="top25-artist"><?= htmlspecialchars($album['Artist']) ?></div>
+                    <div class="top25-title"><a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Album']) ?></a></div>
+                    <div class="top25-artist"><a href="<?= htmlspecialchars(getArtistExternalUrl($album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Artist']) ?></a></div>
                 </div>
             <?php endforeach; ?>
         </div>
@@ -232,8 +234,8 @@ require_once 'includes/header.php';
                     <?php foreach ($visibleAlbums as $index => $album): ?>
                         <tr>
                             <td class="rank-col"><?= $offset + $index + 1 ?></td>
-                            <td><?= htmlspecialchars($album['Artist']) ?></td>
-                            <td><?= htmlspecialchars($album['Album']) ?></td>
+                            <td><a href="<?= htmlspecialchars(getArtistExternalUrl($album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Artist']) ?></a></td>
+                            <td><a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Album']) ?></a></td>
                             <td><?= round((float)$album['Elo']) ?></td>
                             <td><?= (int)$album['Duels'] ?></td>
                             <td><?= (int)$album['Playcount'] ?></td>

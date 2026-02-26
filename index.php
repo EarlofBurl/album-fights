@@ -345,8 +345,8 @@ require_once 'includes/header.php';
                 <input type="hidden" name="targetIdx" value="<?= $albumA['OriginalIndex'] ?>">
                 <button type="submit" class="btn-reload-metadata" title="Refetch metadata" aria-label="Refetch metadata">↻</button>
             </form>
-            <h2 class="artist-name"><?= htmlspecialchars($albumA['Artist']) ?></h2>
-            <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumA['Album']) ?></h3>
+            <h2 class="artist-name"><a href="<?= htmlspecialchars(getArtistExternalUrl($albumA['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($albumA['Artist']) ?></a></h2>
+            <h3 style="margin-top: 0; margin-bottom: 5px;"><a href="<?= htmlspecialchars(getAlbumExternalUrl($albumA['Artist'], $albumA['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($albumA['Album']) ?></a></h3>
             
             <div style="font-size: 0.8rem; margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px; color: var(--accent);">
                 <?= !empty($infoA['year']) ? htmlspecialchars($infoA['year']) . ' • ' : '' ?>
@@ -357,7 +357,9 @@ require_once 'includes/header.php';
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoA['local_image'])): ?>
-                    <img src="<?= htmlspecialchars($infoA['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    <a href="<?= htmlspecialchars(getAlbumExternalUrl($albumA['Artist'], $albumA['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
+                        <img src="<?= htmlspecialchars($infoA['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    </a>
                 <?php else: ?>
                     <div style="width: 250px; height: 250px; background: #333; display: flex; align-items: center; justify-content: center; border-radius: 8px;">No Image</div>
                 <?php endif; ?>
@@ -417,8 +419,8 @@ require_once 'includes/header.php';
                 <input type="hidden" name="targetIdx" value="<?= $albumB['OriginalIndex'] ?>">
                 <button type="submit" class="btn-reload-metadata" title="Refetch metadata" aria-label="Refetch metadata">↻</button>
             </form>
-            <h2 class="artist-name"><?= htmlspecialchars($albumB['Artist']) ?></h2>
-            <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumB['Album']) ?></h3>
+            <h2 class="artist-name"><a href="<?= htmlspecialchars(getArtistExternalUrl($albumB['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($albumB['Artist']) ?></a></h2>
+            <h3 style="margin-top: 0; margin-bottom: 5px;"><a href="<?= htmlspecialchars(getAlbumExternalUrl($albumB['Artist'], $albumB['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($albumB['Album']) ?></a></h3>
             
             <div style="font-size: 0.8rem; margin-bottom: 10px; font-weight: bold; letter-spacing: 0.5px; color: var(--accent);">
                 <?= !empty($infoB['year']) ? htmlspecialchars($infoB['year']) . ' • ' : '' ?>
@@ -429,7 +431,9 @@ require_once 'includes/header.php';
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoB['local_image'])): ?>
-                    <img src="<?= htmlspecialchars($infoB['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    <a href="<?= htmlspecialchars(getAlbumExternalUrl($albumB['Artist'], $albumB['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
+                        <img src="<?= htmlspecialchars($infoB['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    </a>
                 <?php else: ?>
                     <div style="width: 250px; height: 250px; background: #333; display: flex; align-items: center; justify-content: center; border-radius: 8px;">No Image</div>
                 <?php endif; ?>
@@ -485,8 +489,8 @@ if (empty($review_text)):
             <?php foreach ($top20 as $index => $album): ?>
                 <tr>
                     <td class="rank-col"><?= $index + 1 ?></td>
-                    <td style="color: var(--accent); font-weight: bold;"><?= htmlspecialchars($album['Artist']) ?></td>
-                    <td><?= htmlspecialchars($album['Album']) ?></td>
+                    <td style="color: var(--accent); font-weight: bold;"><a href="<?= htmlspecialchars(getArtistExternalUrl($album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Artist']) ?></a></td>
+                    <td><a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Album']) ?></a></td>
                     <td style="color: var(--text-muted); font-size: 0.9rem;"><?= round($album['Elo']) ?></td>
                 </tr>
             <?php endforeach; ?>
