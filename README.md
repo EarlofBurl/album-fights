@@ -93,7 +93,16 @@ Inspired by Flickchart, but focused on albums.
 
 ---
 
-## 🚀 Quick Start (Docker)
+## 🚀 Install
+
+### Desktop Apps (Windows & Linux AppImage)
+
+If you prefer a native desktop build, download it from the GitHub Releases page:
+
+- **Desktop release (Windows + Linux AppImage):**
+  https://github.com/EarlofBurl/album-fights/releases/tag/desktop
+
+### Docker (with Compose)
 
 ### 1) `docker-compose.yml`
 
