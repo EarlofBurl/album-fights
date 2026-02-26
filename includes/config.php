@@ -32,6 +32,11 @@ if (!empty($electronPath)) {
 define('DIR_DATA', $dataDir);
 define('DIR_CACHE', $cacheDir);
 
+// VERGESSENE ZEILEN WIEDER EINGEFÜGT:
+define('FILE_ELO', DIR_DATA . 'elo_state.csv');
+define('FILE_QUEUE', DIR_DATA . 'listening_queue.csv');
+define('FILE_SETTINGS', DIR_DATA . 'settings.json');
+
 // Ordner automatisch anlegen, falls sie noch nicht existieren
 if (!is_dir(DIR_CACHE)) mkdir(DIR_CACHE, 0777, true);
 if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
