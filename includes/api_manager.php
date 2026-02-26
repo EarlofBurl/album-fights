@@ -436,7 +436,10 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($subsonicData['cover_id'])) {
                 $imgData = downloadSubsonicCoverArt($subsonicData['cover_id']);
                 if ($imgData !== null) {
-                    file_put_contents($imgFile, $imgData);
+                    $written = @file_put_contents($imgFile, $imgData);
+                    if ($written === false) {
+                        error_log('Album image cache write failed: ' . $imgFile);
+                    }
                     $result['local_image'] = $imgUrl;
                     $foundImage = true;
                 }
@@ -494,7 +497,10 @@ function getAlbumData($artist, $album) {
 
                         $imgData = fetchBinaryWithHeaders((string)$img['#text'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                         if ($imgData !== null) {
-                            file_put_contents($imgFile, $imgData);
+                            $written = @file_put_contents($imgFile, $imgData);
+                            if ($written === false) {
+                                error_log('Album image cache write failed: ' . $imgFile);
+                            }
                             $result['local_image'] = $imgUrl;
                             $foundImage = true;
                             break;
@@ -528,7 +534,10 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($listenbrainzData['image_url'])) {
                 $imgData = fetchBinaryWithHeaders($listenbrainzData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                 if ($imgData !== null) {
-                    file_put_contents($imgFile, $imgData);
+                    $written = @file_put_contents($imgFile, $imgData);
+                    if ($written === false) {
+                        error_log('Album image cache write failed: ' . $imgFile);
+                    }
                     $result['local_image'] = $imgUrl;
                     $foundImage = true;
                 }
@@ -572,7 +581,10 @@ function getAlbumData($artist, $album) {
             if (!$foundImage && !empty($itunesData['image_url'])) {
                 $imgData = fetchBinaryWithHeaders($itunesData['image_url'], ['User-Agent: AlbumDuelApp/1.0'], 8);
                 if ($imgData !== null) {
-                    file_put_contents($imgFile, $imgData);
+                    $written = @file_put_contents($imgFile, $imgData);
+                    if ($written === false) {
+                        error_log('Album image cache write failed: ' . $imgFile);
+                    }
                     $result['local_image'] = $imgUrl;
                     $foundImage = true;
                 }
@@ -590,7 +602,19 @@ function getAlbumData($artist, $album) {
 
     $result['genres'] = applyTagBlacklist($result['genres'] ?? []);
 
-    file_put_contents($jsonFile, json_encode($result));
+    $json = json_encode(
+    $result,
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+);
+
+if ($json === false) {
+    error_log('Album cache json_encode failed for ' . $artist . ' - ' . $album . ': ' . json_last_error_msg());
+} else {
+    $written = @file_put_contents($jsonFile, $json);
+    if ($written === false) {
+        error_log('Album cache write failed: ' . $jsonFile);
+    }
+}
 
     devPerfLog('album_data.refresh', [
         'artist' => $artist,
