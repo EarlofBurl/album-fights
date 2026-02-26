@@ -47,8 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $idxA = isset($_POST['idxA']) ? (int)$_POST['idxA'] : null;
     $idxB = isset($_POST['idxB']) ? (int)$_POST['idxB'] : null;
+    $shouldResetCurrentDuel = true;
 
-    if ($action === 'vote') {
+    if ($action === 'reload_metadata') {
+        $targetIdx = (int)($_POST['targetIdx'] ?? -1);
+        if (isset($albums[$targetIdx])) {
+            getAlbumData($albums[$targetIdx]['Artist'], $albums[$targetIdx]['Album'], true);
+        }
+        $shouldResetCurrentDuel = false;
+    } elseif ($action === 'vote') {
         if (isset($albums[$idxA], $albums[$idxB])) {
             unset($_SESSION['keep_artist'], $_SESSION['keep_album']);
             $scoreA = (float)$_POST['scoreA'];
@@ -107,8 +114,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     
-    // Clear the current session duel to force a new draw
-    unset($_SESSION['current_duel']);
+    // Clear the current session duel to force a new draw (except metadata reload)
+    if ($shouldResetCurrentDuel) {
+        unset($_SESSION['current_duel']);
+    }
 
     // Redirect to prevent form resubmission unless we have a review text to show
     if (empty($review_text)) {
@@ -331,6 +340,11 @@ require_once 'includes/header.php';
     <div class="duel-container">
         <div class="duel-card <?= getRankClass($albumA['Rank']) ?>">
             <div class="duel-rank-badge">#<?= $albumA['Rank'] ?></div>
+            <form method="POST" style="position: absolute; top: 10px; right: 10px; margin: 0;">
+                <input type="hidden" name="action" value="reload_metadata">
+                <input type="hidden" name="targetIdx" value="<?= $albumA['OriginalIndex'] ?>">
+                <button type="submit" class="btn-reload-metadata" title="Refetch metadata" aria-label="Refetch metadata">↻</button>
+            </form>
             <h2 class="artist-name"><?= htmlspecialchars($albumA['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumA['Album']) ?></h3>
             
@@ -398,6 +412,11 @@ require_once 'includes/header.php';
 
         <div class="duel-card <?= getRankClass($albumB['Rank']) ?>">
             <div class="duel-rank-badge">#<?= $albumB['Rank'] ?></div>
+            <form method="POST" style="position: absolute; top: 10px; right: 10px; margin: 0;">
+                <input type="hidden" name="action" value="reload_metadata">
+                <input type="hidden" name="targetIdx" value="<?= $albumB['OriginalIndex'] ?>">
+                <button type="submit" class="btn-reload-metadata" title="Refetch metadata" aria-label="Refetch metadata">↻</button>
+            </form>
             <h2 class="artist-name"><?= htmlspecialchars($albumB['Artist']) ?></h2>
             <h3 style="margin-top: 0; margin-bottom: 5px;"><?= htmlspecialchars($albumB['Album']) ?></h3>
             

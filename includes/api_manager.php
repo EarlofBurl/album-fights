@@ -378,7 +378,7 @@ function hasCoreAlbumMetadata($result) {
     return !empty($result['url']) || !empty($result['year']) || !empty($result['genres']) || ($result['summary'] ?? '') !== 'No info available.';
 }
 
-function getAlbumData($artist, $album) {
+function getAlbumData($artist, $album, $forceRefresh = false) {
     global $APP_SETTINGS;
 
     $fnStart = microtime(true);
@@ -394,7 +394,7 @@ function getAlbumData($artist, $album) {
     $refreshCooldownSeconds = 60 * 60 * 24 * 7; // one week
 
     // 1. Load cache
-    if (file_exists($jsonFile)) {
+    if (!$forceRefresh && file_exists($jsonFile)) {
         $data = json_decode(file_get_contents($jsonFile), true);
         if (is_array($data)) {
             if (file_exists($imgFile)) {
@@ -427,6 +427,13 @@ function getAlbumData($artist, $album) {
                 return $data;
             }
         }
+    }
+
+    if ($forceRefresh) {
+        devPerfLog('album_data.force_refresh', [
+            'artist' => $artist,
+            'album' => $album
+        ]);
     }
 
     $result = [

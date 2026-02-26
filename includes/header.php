@@ -65,6 +65,7 @@
             display: flex; 
             flex-direction: column;
             transition: all 0.3s ease;
+            position: relative;
         }
 
         /* --- VISUELLE TIERS (Schlagen jetzt richtig durch!) --- */
@@ -172,6 +173,29 @@
             letter-spacing: 0.5px;
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
             transition: all 0.3s ease;
+        }
+
+
+        .btn-reload-metadata {
+            width: 28px;
+            height: 28px;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.35);
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .btn-reload-metadata:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: rgba(0, 0, 0, 0.55);
         }
 
         .btn-small {
