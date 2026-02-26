@@ -357,7 +357,9 @@ require_once 'includes/header.php';
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoA['local_image'])): ?>
-                    <img src="<?= htmlspecialchars($infoA['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    <a href="<?= htmlspecialchars(getAlbumExternalUrl($albumA['Artist'], $albumA['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
+                        <img src="<?= htmlspecialchars($infoA['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    </a>
                 <?php else: ?>
                     <div style="width: 250px; height: 250px; background: #333; display: flex; align-items: center; justify-content: center; border-radius: 8px;">No Image</div>
                 <?php endif; ?>
@@ -429,7 +431,9 @@ require_once 'includes/header.php';
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoB['local_image'])): ?>
-                    <img src="<?= htmlspecialchars($infoB['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    <a href="<?= htmlspecialchars(getAlbumExternalUrl($albumB['Artist'], $albumB['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
+                        <img src="<?= htmlspecialchars($infoB['local_image']) ?>" alt="Cover" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    </a>
                 <?php else: ?>
                     <div style="width: 250px; height: 250px; background: #333; display: flex; align-items: center; justify-content: center; border-radius: 8px;">No Image</div>
                 <?php endif; ?>

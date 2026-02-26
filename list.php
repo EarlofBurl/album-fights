@@ -195,7 +195,9 @@ require_once 'includes/header.php';
                 <div class="<?= htmlspecialchars($cardClasses) ?>">
                     <span class="top25-rank">#<?= $rank ?></span>
                     <?php if ($coverUrl !== ''): ?>
-                        <img class="top25-cover" src="<?= htmlspecialchars($coverUrl) ?>" alt="Cover: <?= htmlspecialchars($album['Artist'] . ' - ' . $album['Album']) ?>">
+                        <a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: block;">
+                            <img class="top25-cover" src="<?= htmlspecialchars($coverUrl) ?>" alt="Cover: <?= htmlspecialchars($album['Artist'] . ' - ' . $album['Album']) ?>">
+                        </a>
                     <?php else: ?>
                         <div class="top25-cover-placeholder">No cover cached</div>
                     <?php endif; ?>
