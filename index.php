@@ -27,6 +27,22 @@ function getRankClass($rank) {
     return '';
 }
 
+function renderTracklist($info) {
+    $tracks = $info['tracks'] ?? [];
+    if (!is_array($tracks) || empty($tracks)) {
+        return;
+    }
+
+    echo '<details style="margin: 12px 0; text-align: left;">';
+    echo '<summary style="cursor: pointer; color: var(--accent); font-size: 0.85rem; font-weight: bold;">🎵 Show tracklist (' . count($tracks) . ')</summary>';
+    echo '<ol style="margin: 8px 0 0 18px; padding-right: 8px; max-height: 140px; overflow-y: auto; color: var(--text-muted); font-size: 0.8rem;">';
+    foreach ($tracks as $track) {
+        echo '<li style="margin-bottom: 4px;">' . htmlspecialchars((string)$track) . '</li>';
+    }
+    echo '</ol>';
+    echo '</details>';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $idxA = isset($_POST['idxA']) ? (int)$_POST['idxA'] : null;
@@ -337,6 +353,8 @@ require_once 'includes/header.php';
                 <?= htmlspecialchars($infoA['summary']) ?>
             </p>
 
+            <?php renderTracklist($infoA); ?>
+
             <form method="POST" style="margin-top: 15px;">
                 <input type="hidden" name="action" value="vote">
                 <input type="hidden" name="idxA" value="<?= $albumA['OriginalIndex'] ?>">
@@ -401,6 +419,8 @@ require_once 'includes/header.php';
             <p style="font-size: 0.85rem; color: var(--text-muted); text-align: justify; height: 100px; overflow-y: auto; padding-right: 10px;">
                 <?= htmlspecialchars($infoB['summary']) ?>
             </p>
+
+            <?php renderTracklist($infoB); ?>
 
             <form method="POST" style="margin-top: 15px;">
                 <input type="hidden" name="action" value="vote">

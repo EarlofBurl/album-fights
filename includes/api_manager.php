@@ -186,6 +186,22 @@ function normalizeAlbumText($value) {
     return preg_replace('/\s+/', ' ', strtolower(trim((string)$value)));
 }
 
+function normalizeTrackList($tracks) {
+    if (!is_array($tracks)) {
+        return [];
+    }
+
+    $normalized = [];
+    foreach ($tracks as $track) {
+        $name = trim((string)$track);
+        if ($name !== '') {
+            $normalized[] = $name;
+        }
+    }
+
+    return array_values(array_unique($normalized));
+}
+
 function fetchSubsonicAlbumData($artist, $album) {
     if (!isSubsonicConfigured()) {
         return null;
@@ -232,6 +248,7 @@ function fetchSubsonicAlbumData($artist, $album) {
     $albumId = trim((string)($best['id'] ?? ''));
     $coverId = trim((string)($best['coverArt'] ?? $albumId));
     $genres = [];
+    $tracks = [];
 
     if (!empty($best['genre'])) {
         $genres[] = ucwords(trim((string)$best['genre']));
@@ -252,6 +269,13 @@ function fetchSubsonicAlbumData($artist, $album) {
             if ($coverId === '' && !empty($fullAlbum['coverArt'])) {
                 $coverId = trim((string)$fullAlbum['coverArt']);
             }
+
+            $songs = normalizeSubsonicApiArray($fullAlbum['song'] ?? []);
+            foreach ($songs as $song) {
+                if (!empty($song['title'])) {
+                    $tracks[] = trim((string)$song['title']);
+                }
+            }
         }
     }
 
@@ -260,7 +284,8 @@ function fetchSubsonicAlbumData($artist, $album) {
         'summary' => '',
         'genres' => array_values(array_unique(array_filter($genres))),
         'year' => $year,
-        'cover_id' => $coverId
+        'cover_id' => $coverId,
+        'tracks' => normalizeTrackList($tracks)
     ];
 }
 
@@ -299,7 +324,8 @@ function fetchItunesAlbumData($artist, $album) {
         'summary' => '',
         'genres' => array_values(array_unique($genres)),
         'year' => $year,
-        'image_url' => $coverUrl
+        'image_url' => $coverUrl,
+        'tracks' => []
     ];
 }
 
@@ -343,7 +369,8 @@ function fetchListenbrainzAlbumData($artist, $album) {
         'summary' => '',
         'genres' => array_values(array_unique($genres)),
         'year' => $year,
-        'image_url' => $coverUrl
+        'image_url' => $coverUrl,
+        'tracks' => []
     ];
 }
 
@@ -382,10 +409,12 @@ function getAlbumData($artist, $album) {
             $shouldRefreshForListenbrainzEnrichment = $listenbrainzConfigured
                 && $source !== 'listenbrainz'
                 && ($missingYear || $missingGenres);
+            $missingTracks = !isset($data['tracks']) || !is_array($data['tracks']) || count($data['tracks']) === 0;
+            $shouldRefreshForTracklist = $missingTracks && in_array($source, ['subsonic', 'lastfm'], true);
 
             $lastRefreshAttempt = isset($data['refresh_attempted_at']) ? (int)$data['refresh_attempted_at'] : 0;
             $cooldownActive = $lastRefreshAttempt > 0 && ($now - $lastRefreshAttempt) < $refreshCooldownSeconds;
-            $refreshNeeded = $shouldRefreshOldItunesCache || $shouldRefreshForListenbrainzEnrichment;
+            $refreshNeeded = $shouldRefreshOldItunesCache || $shouldRefreshForListenbrainzEnrichment || $shouldRefreshForTracklist;
 
             if (isset($data['full_data_fetched']) && $data['full_data_fetched'] === true && (!$refreshNeeded || $cooldownActive)) {
                 $data['genres'] = applyTagBlacklist($data['genres'] ?? []);
@@ -406,6 +435,7 @@ function getAlbumData($artist, $album) {
         'url' => '',
         'genres' => [],
         'year' => '',
+        'tracks' => [],
         'full_data_fetched' => true,
         'metadata_source' => '',
         'refresh_attempted_at' => $now
@@ -427,6 +457,10 @@ function getAlbumData($artist, $album) {
 
             if (!empty($subsonicData['genres'])) {
                 $result['genres'] = array_values(array_unique(array_merge($result['genres'], $subsonicData['genres'])));
+            }
+
+            if (!empty($subsonicData['tracks'])) {
+                $result['tracks'] = normalizeTrackList(array_merge($result['tracks'], $subsonicData['tracks']));
             }
 
             if (!$foundImage && !empty($subsonicData['cover_id'])) {
@@ -480,6 +514,20 @@ function getAlbumData($artist, $album) {
                         }
                     }
                     $result['genres'] = array_values(array_unique($result['genres']));
+                }
+
+                if (!empty($albumData['tracks']['track'])) {
+                    $tracks = $albumData['tracks']['track'];
+                    if (isset($tracks['name'])) {
+                        $result['tracks'][] = trim((string)$tracks['name']);
+                    } elseif (is_array($tracks)) {
+                        foreach ($tracks as $track) {
+                            if (!empty($track['name'])) {
+                                $result['tracks'][] = trim((string)$track['name']);
+                            }
+                        }
+                    }
+                    $result['tracks'] = normalizeTrackList($result['tracks']);
                 }
 
                 if (!empty($albumData['image']) && is_array($albumData['image'])) {
@@ -585,6 +633,7 @@ function getAlbumData($artist, $album) {
     }
 
     $result['genres'] = applyTagBlacklist($result['genres'] ?? []);
+    $result['tracks'] = normalizeTrackList($result['tracks'] ?? []);
 
     file_put_contents($jsonFile, json_encode($result));
 
