@@ -23,12 +23,17 @@ if (empty($_SESSION['subsonic_user']) && !empty($APP_SETTINGS['subsonic_username
 
 // Smarte Weiche für den Desktop
 function getSslOptionsForDesktop() {
-    if (getenv('FLATPAK_ID') || getenv('APPDATA') || getenv('ELECTRON_RUN_AS_NODE')) {
+    if (
+        getenv('ALBUMFIGHTS_DESKTOP') === '1' ||
+        getenv('FLATPAK_ID') ||
+        getenv('ELECTRON_RUN_AS_NODE')
+    ) {
         return [
             'verify_peer' => false,
             'verify_peer_name' => false
         ];
     }
+
     return [];
 }
 
@@ -709,8 +714,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] === UPLOAD_ERR_OK) {
                 $fileTmpPath = $_FILES['csv_file']['tmp_name'];
                 if (($handle = fopen($fileTmpPath, 'r')) !== FALSE) {
-                    $header = fgetcsv($handle, 1000, ',');
-                    while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
+                    $header = fgetcsv($handle, 1000, ',', '"', '');
+                    while (($data = fgetcsv($handle, 1000, ',', '"', '')) !== FALSE) {
                         $candidate = parseCandidateFromCsvRow($data);
                         if ($candidate !== null && $candidate['playcount'] >= $min_plays) {
                             $candidates[] = $candidate;
@@ -741,7 +746,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $added = 0;
                 $alreadyInDb = 0;
 
-                while (($row = fgetcsv($handle, 2000, ',')) !== FALSE) {
+                while (($row = fgetcsv($handle, 2000, ',', '"', '')) !== FALSE) {
                     $candidate = parseCandidateFromCsvRow($row, $candidatePlaycount);
                     if ($candidate === null) {
                         continue;

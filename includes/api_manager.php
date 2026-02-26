@@ -4,12 +4,17 @@ require_once 'config.php';
 // Smarte Weiche: SSL-Bypass nur für gepackte Desktop-Apps, 
 // damit im Docker-Container die API-Keys sicher bleiben!
 function getSslOptionsForDesktop() {
-    if (getenv('FLATPAK_ID') || getenv('APPDATA') || getenv('ELECTRON_RUN_AS_NODE')) {
+    if (
+        getenv('ALBUMFIGHTS_DESKTOP') === '1' ||
+        getenv('FLATPAK_ID') ||
+        getenv('ELECTRON_RUN_AS_NODE')
+    ) {
         return [
             'verify_peer' => false,
             'verify_peer_name' => false
         ];
     }
+
     return [];
 }
 

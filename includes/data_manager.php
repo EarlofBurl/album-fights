@@ -1,36 +1,47 @@
 <?php
 function loadCsv($filename) {
     $data = [];
-    if (file_exists($filename) && ($handle = fopen($filename, "r")) !== FALSE) {
-        $headers = fgetcsv($handle); 
-        while (($row = fgetcsv($handle)) !== FALSE) {
+
+    if (file_exists($filename) && ($handle = fopen($filename, "r")) !== false) {
+        $headers = fgetcsv($handle, 0, ',', '"', '');
+
+        while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
             if (count($row) >= 5) {
                 $data[] = [
-                    'Artist' => $row[0] ?? 'Unknown', 
+                    'Artist' => $row[0] ?? 'Unknown',
                     'Album' => $row[1] ?? 'Unknown',
-                    'Elo' => (float)($row[2] ?? 1200), 
-                    'Duels' => (int)($row[3] ?? 0), 
+                    'Elo' => (float)($row[2] ?? 1200),
+                    'Duels' => (int)($row[3] ?? 0),
                     'Playcount' => (int)($row[4] ?? 0)
                 ];
             }
         }
+
         fclose($handle);
     }
+
     return $data;
 }
 
 function saveCsv($filename, $data) {
     $handle = fopen($filename, "w");
-    fputcsv($handle, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount']);
+
+    if ($handle === false) {
+        return;
+    }
+
+    fputcsv($handle, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount'], ',', '"', '');
+
     foreach ($data as $row) {
-        // Ensure all keys exist before writing
         $artist = $row['Artist'] ?? 'Unknown';
         $album = $row['Album'] ?? 'Unknown';
         $elo = $row['Elo'] ?? 1200;
         $duels = $row['Duels'] ?? 0;
         $playcount = $row['Playcount'] ?? 0;
-        fputcsv($handle, [$artist, $album, $elo, $duels, $playcount]);
+
+        fputcsv($handle, [$artist, $album, $elo, $duels, $playcount], ',', '"', '');
     }
+
     fclose($handle);
 }
 
@@ -61,3 +72,4 @@ function loadSnapshot() {
 function saveSnapshot($top100) {
     file_put_contents(DIR_DATA . 'top100_snapshot.json', json_encode($top100));
 }
+?>

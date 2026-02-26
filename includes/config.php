@@ -3,23 +3,49 @@ session_start();
 
 // --- SMART PATH RESOLUTION (Web/Docker vs Desktop) ---
 
-// 1. Dein funktionierender Standard (Web / Docker / Dev VM)
-$dataDir = __DIR__ . '/../data/';
-$cacheDir = __DIR__ . '/../cache/';
+function normalizeAppDir($path) {
+    $path = str_replace('\\', '/', (string)$path);
+    return rtrim($path, '/') . '/';
+}
 
-// 2. Desktop-Overrides (Diese greifen NUR, wenn die App verpackt auf dem Desktop läuft)
-if (getenv('FLATPAK_ID')) {
-    // Linux Flatpak
-    $dataDir = rtrim(getenv('XDG_DATA_HOME'), '/') . '/AlbumFightsData/';
-    $cacheDir = rtrim(getenv('XDG_CACHE_HOME'), '/') . '/AlbumFightsCache/';
+// 1. Standard für Web / Docker / Dev VM
+$dataDir = normalizeAppDir(__DIR__ . '/../data');
+$cacheDir = normalizeAppDir(__DIR__ . '/../cache');
+
+// 2. Desktop-Override über Electron-Umgebungsvariablen
+if (getenv('ALBUMFIGHTS_DESKTOP') === '1') {
+    $desktopDataDir = getenv('ALBUMFIGHTS_DATA_DIR') ?: '';
+    $desktopCacheDir = getenv('ALBUMFIGHTS_CACHE_DIR') ?: '';
+
+    if ($desktopDataDir !== '') {
+        $dataDir = normalizeAppDir($desktopDataDir);
+    }
+
+    if ($desktopCacheDir !== '') {
+        $cacheDir = normalizeAppDir($desktopCacheDir);
+    }
+} elseif (getenv('FLATPAK_ID')) {
+    // Fallback für ältere Linux-Desktop-Builds
+    $xdgDataHome = getenv('XDG_DATA_HOME') ?: (getenv('HOME') ? rtrim(getenv('HOME'), '/') . '/.local/share' : '');
+    $xdgCacheHome = getenv('XDG_CACHE_HOME') ?: (getenv('HOME') ? rtrim(getenv('HOME'), '/') . '/.cache' : '');
+
+    if ($xdgDataHome !== '') {
+        $dataDir = normalizeAppDir($xdgDataHome . '/AlbumFightsData');
+    }
+
+    if ($xdgCacheHome !== '') {
+        $cacheDir = normalizeAppDir($xdgCacheHome . '/AlbumFightsCache');
+    }
 } elseif (getenv('APPDATA')) {
-    // Windows Desktop (.exe)
-    $dataDir = str_replace('\\', '/', getenv('APPDATA')) . '/AlbumFights/data/';
-    $cacheDir = str_replace('\\', '/', getenv('LOCALAPPDATA')) . '/AlbumFights/cache/';
+    // Fallback für ältere Windows-Desktop-Builds
+    $dataDir = normalizeAppDir(getenv('APPDATA') . '/AlbumFights/data');
+
+    $localAppData = getenv('LOCALAPPDATA') ?: getenv('APPDATA');
+    $cacheDir = normalizeAppDir($localAppData . '/AlbumFights/cache');
 } elseif (PHP_OS_FAMILY === 'Darwin' && getenv('HOME') && getenv('ELECTRON_RUN_AS_NODE')) {
-    // macOS Desktop (.dmg)
-    $dataDir = rtrim(getenv('HOME'), '/') . '/Library/Application Support/AlbumFights/data/';
-    $cacheDir = rtrim(getenv('HOME'), '/') . '/Library/Caches/AlbumFights/';
+    // Fallback für ältere macOS-Desktop-Builds
+    $dataDir = normalizeAppDir(getenv('HOME') . '/Library/Application Support/AlbumFights/data');
+    $cacheDir = normalizeAppDir(getenv('HOME') . '/Library/Caches/AlbumFights');
 }
 
 // Konstanten setzen
@@ -33,7 +59,6 @@ define('FILE_SETTINGS', DIR_DATA . 'settings.json');
 // Ordner automatisch anlegen, falls sie noch nicht existieren
 if (!is_dir(DIR_CACHE)) mkdir(DIR_CACHE, 0777, true);
 if (!is_dir(DIR_DATA)) mkdir(DIR_DATA, 0777, true);
-
 
 define('APP_ENV', getenv('APP_ENV') ?: 'prod');
 define('DEV_PERF_LOG_ENABLED', APP_ENV === 'dev' && getenv('DEV_PERF_LOG') === '1');
@@ -53,7 +78,6 @@ function devPerfLog($event, $context = []) {
     @file_put_contents(DEV_PERF_LOG_FILE, json_encode($payload, JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
 }
 
-
 // Default settings with current models
 $defaultSettings = [
     'lastfm_api_key' => getenv('LASTFM_API_KEY') ?: '',
@@ -64,7 +88,7 @@ $defaultSettings = [
     'subsonic_password' => getenv('SUBSONIC_PASSWORD') ?: '',
     'gemini_api_key' => getenv('GEMINI_API_KEY') ?: '',
     'openai_api_key' => getenv('OPENAI_API_KEY') ?: '',
-    'ai_provider' => 'gemini', 
+    'ai_provider' => 'gemini',
     'gemini_model' => 'gemini-3-flash-preview',
     'openai_model' => 'gpt-4o-mini',
     'nerd_comments_enabled' => true,
