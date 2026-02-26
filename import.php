@@ -21,6 +21,17 @@ if (empty($_SESSION['subsonic_user']) && !empty($APP_SETTINGS['subsonic_username
     $_SESSION['subsonic_user'] = $APP_SETTINGS['subsonic_username'];
 }
 
+// Smarte Weiche für den Desktop
+function getSslOptionsForDesktop() {
+    if (getenv('FLATPAK_ID') || getenv('APPDATA') || getenv('ELECTRON_RUN_AS_NODE')) {
+        return [
+            'verify_peer' => false,
+            'verify_peer_name' => false
+        ];
+    }
+    return [];
+}
+
 function encodeCandidatesState($candidates, $source = '') {
     return base64_encode(json_encode([
         'source' => $source,
@@ -57,6 +68,11 @@ function fetchJson($url, $headers = []) {
         $opts['http']['header'] = $userAgent . implode("\r\n", $headers) . "\r\n";
     } else {
         $opts['http']['header'] = $userAgent;
+    }
+
+    $sslOpts = getSslOptionsForDesktop();
+    if (!empty($sslOpts)) {
+        $opts['ssl'] = $sslOpts;
     }
 
     $response = @file_get_contents($url, false, stream_context_create($opts));

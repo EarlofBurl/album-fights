@@ -1,6 +1,18 @@
 <?php
 require_once 'config.php';
 
+// Smarte Weiche: SSL-Bypass nur für gepackte Desktop-Apps, 
+// damit im Docker-Container die API-Keys sicher bleiben!
+function getSslOptionsForDesktop() {
+    if (getenv('FLATPAK_ID') || getenv('APPDATA') || getenv('ELECTRON_RUN_AS_NODE')) {
+        return [
+            'verify_peer' => false,
+            'verify_peer_name' => false
+        ];
+    }
+    return [];
+}
+
 function getAlbumCacheBaseName($artist, $album) {
     // We use an MD5 hash so filenames never exceed the OS 255-character limit
     $hash = md5(strtolower($artist . "_" . $album));
@@ -53,6 +65,11 @@ function fetchJsonWithHeaders($url, $headers = [], $timeout = 20) {
         ]
     ];
 
+    $sslOpts = getSslOptionsForDesktop();
+    if (!empty($sslOpts)) {
+        $opts['ssl'] = $sslOpts;
+    }
+
     $response = @file_get_contents($url, false, stream_context_create($opts));
     if ($response === false) {
         return null;
@@ -70,6 +87,11 @@ function fetchBinaryWithHeaders($url, $headers = [], $timeout = 12) {
             'header' => implode("\r\n", $headers) . "\r\n"
         ]
     ];
+
+    $sslOpts = getSslOptionsForDesktop();
+    if (!empty($sslOpts)) {
+        $opts['ssl'] = $sslOpts;
+    }
 
     $response = @file_get_contents($url, false, stream_context_create($opts));
     return $response === false ? null : $response;
@@ -618,6 +640,8 @@ function triggerBootcampComment($top50Text, $top50History = [], $commentHistory 
 function callAIProvider($prompt) {
     global $APP_SETTINGS;
     
+    $sslOpts = getSslOptionsForDesktop();
+
     if ($APP_SETTINGS['ai_provider'] === 'openai') {
         $url = "https://api.openai.com/v1/chat/completions";
         $data = [
@@ -634,6 +658,8 @@ function callAIProvider($prompt) {
                 'content' => json_encode($data)
             ]
         ];
+        if (!empty($sslOpts)) $options['ssl'] = $sslOpts;
+
         $context = stream_context_create($options);
         $response = @file_get_contents($url, false, $context);
         
@@ -651,6 +677,8 @@ function callAIProvider($prompt) {
                 'content' => json_encode($data)
             ]
         ];
+        if (!empty($sslOpts)) $options['ssl'] = $sslOpts;
+
         $context = stream_context_create($options);
         $response = @file_get_contents($url, false, $context);
         
