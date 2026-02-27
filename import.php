@@ -65,6 +65,11 @@ function getCandidateKey($candidate) {
 }
 
 function fetchJson($url, $headers = []) {
+    $result = fetchJsonDetailed($url, $headers);
+    return $result['ok'] ? $result['data'] : null;
+}
+
+function fetchJsonDetailed($url, $headers = []) {
     $opts = ['http' => ['method' => 'GET', 'timeout' => 20]];
 
     $userAgent = "User-Agent: AlbumDuelApp/1.0\r\n";
@@ -81,12 +86,65 @@ function fetchJson($url, $headers = []) {
     }
 
     $response = @file_get_contents($url, false, stream_context_create($opts));
+    $statusLine = $http_response_header[0] ?? '';
+    $httpCode = null;
+    if (preg_match('/\s(\d{3})\s/', $statusLine, $matches)) {
+        $httpCode = (int)$matches[1];
+    }
+
     if ($response === false) {
-        return null;
+        $lastError = error_get_last();
+        $message = 'Connection failed.';
+        if (!empty($lastError['message'])) {
+            $message = $lastError['message'];
+        } elseif ($httpCode !== null) {
+            $message = 'HTTP ' . $httpCode;
+        }
+
+        return [
+            'ok' => false,
+            'data' => null,
+            'http_code' => $httpCode,
+            'error' => trim($message)
+        ];
     }
 
     $decoded = json_decode($response, true);
-    return is_array($decoded) ? $decoded : null;
+    if (!is_array($decoded)) {
+        return [
+            'ok' => false,
+            'data' => null,
+            'http_code' => $httpCode,
+            'error' => 'Invalid JSON response from API.'
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'data' => $decoded,
+        'http_code' => $httpCode,
+        'error' => ''
+    ];
+}
+
+function setImportApiError($sourceLabel, $message) {
+    if (trim((string)$message) === '') {
+        return;
+    }
+
+    $_SESSION['import_api_error'] = [
+        'source' => $sourceLabel,
+        'message' => trim((string)$message)
+    ];
+}
+
+function clearImportApiError() {
+    unset($_SESSION['import_api_error']);
+}
+
+function getImportApiError() {
+    $error = $_SESSION['import_api_error'] ?? null;
+    return is_array($error) ? $error : null;
 }
 
 
@@ -120,6 +178,7 @@ function normalizeSubsonicArray($value) {
 function subsonicApiRequest($method, $params = []) {
     $cfg = getSubsonicConfig();
     if ($cfg === null) {
+        setImportApiError('Navidrome/Subsonic', 'Subsonic ist nicht vollständig konfiguriert (Base URL, Username oder Passwort fehlt).');
         return null;
     }
 
@@ -134,14 +193,26 @@ function subsonicApiRequest($method, $params = []) {
     ], $params);
 
     $url = $cfg['base_url'] . '/rest/' . $method . '.view?' . http_build_query($query);
-    $data = fetchJson($url);
+    $result = fetchJsonDetailed($url);
+    if (!$result['ok']) {
+        $hint = $result['error'] ?? 'Verbindung fehlgeschlagen.';
+        setImportApiError('Navidrome/Subsonic', 'Subsonic-API nicht erreichbar: ' . $hint);
+        return null;
+    }
+
+    $data = $result['data'];
 
     if (!is_array($data) || !isset($data['subsonic-response'])) {
+        setImportApiError('Navidrome/Subsonic', 'Ungültige Antwort von der Subsonic-API erhalten.');
         return null;
     }
 
     $response = $data['subsonic-response'];
     if (($response['status'] ?? 'failed') !== 'ok') {
+        $apiMessage = trim((string)($response['error']['message'] ?? 'Unbekannter Fehler'));
+        $apiCode = (int)($response['error']['code'] ?? 0);
+        $error = $apiCode > 0 ? "Fehler $apiCode: $apiMessage" : $apiMessage;
+        setImportApiError('Navidrome/Subsonic', 'Subsonic meldet einen Fehler: ' . $error);
         return null;
     }
 
@@ -289,11 +360,29 @@ function parseCandidateFromCsvRow($data, $defaultPlaycount = 1) {
 
 function fetchLastfmTopAlbums($username, $limit) {
     if (empty($username) || empty(LASTFM_API_KEY)) {
+        if (empty($username)) {
+            setImportApiError('Last.fm', 'Bitte einen Last.fm-Username eingeben.');
+        } elseif (empty(LASTFM_API_KEY)) {
+            setImportApiError('Last.fm', 'Last.fm API-Key fehlt in der Konfiguration.');
+        }
         return [];
     }
 
     $url = "http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=" . urlencode($username) . "&api_key=" . LASTFM_API_KEY . "&format=json&limit=" . (int)$limit;
-    $data = fetchJson($url);
+    $result = fetchJsonDetailed($url);
+    if (!$result['ok']) {
+        setImportApiError('Last.fm', 'Last.fm-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.'));
+        return [];
+    }
+
+    $data = $result['data'];
+    if (isset($data['error'])) {
+        $errorCode = (int)$data['error'];
+        $errorMessage = trim((string)($data['message'] ?? 'Unbekannter Fehler'));
+        setImportApiError('Last.fm', "Last.fm Fehler $errorCode: $errorMessage");
+        return [];
+    }
+
     if (!isset($data['topalbums']['album']) || !is_array($data['topalbums']['album'])) {
         return [];
     }
@@ -313,6 +402,7 @@ function fetchLastfmTopAlbums($username, $limit) {
 
 function fetchListenbrainzTopAlbums($username, $limit) {
     if (empty($username)) {
+        setImportApiError('ListenBrainz', 'Bitte einen ListenBrainz-Username eingeben.');
         return [];
     }
 
@@ -322,7 +412,19 @@ function fetchListenbrainzTopAlbums($username, $limit) {
     }
 
     $url = 'https://api.listenbrainz.org/1/stats/user/' . rawurlencode($username) . '/releases?range=all_time&count=' . (int)$limit;
-    $data = fetchJson($url, $headers);
+    $result = fetchJsonDetailed($url, $headers);
+    if (!$result['ok']) {
+        setImportApiError('ListenBrainz', 'ListenBrainz-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.'));
+        return [];
+    }
+
+    $data = $result['data'];
+    if (($data['code'] ?? 200) !== 200) {
+        $errorMessage = trim((string)($data['error'] ?? $data['message'] ?? 'Unbekannter Fehler'));
+        setImportApiError('ListenBrainz', 'ListenBrainz meldet einen Fehler: ' . $errorMessage);
+        return [];
+    }
+
     if (!isset($data['payload']['releases']) || !is_array($data['payload']['releases'])) {
         return [];
     }
@@ -342,6 +444,11 @@ function fetchListenbrainzTopAlbums($username, $limit) {
 
 function fetchLastfmRecentAlbumCounts($username, $targetTracks = 400) {
     if (empty($username) || empty(LASTFM_API_KEY)) {
+        if (empty($username)) {
+            setImportApiError('Last.fm', 'Bitte einen Last.fm-Username eingeben.');
+        } elseif (empty(LASTFM_API_KEY)) {
+            setImportApiError('Last.fm', 'Last.fm API-Key fehlt in der Konfiguration.');
+        }
         return [];
     }
 
@@ -350,7 +457,19 @@ function fetchLastfmRecentAlbumCounts($username, $targetTracks = 400) {
 
     for ($page = 1; $page <= $pages; $page++) {
         $url = 'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=' . urlencode($username) . '&api_key=' . LASTFM_API_KEY . '&format=json&limit=200&page=' . $page;
-        $data = fetchJson($url);
+        $result = fetchJsonDetailed($url);
+        if (!$result['ok']) {
+            setImportApiError('Last.fm', 'Last.fm-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.'));
+            return [];
+        }
+
+        $data = $result['data'];
+        if (isset($data['error'])) {
+            $errorCode = (int)$data['error'];
+            $errorMessage = trim((string)($data['message'] ?? 'Unbekannter Fehler'));
+            setImportApiError('Last.fm', "Last.fm Fehler $errorCode: $errorMessage");
+            return [];
+        }
 
         if (!isset($data['recenttracks']['track'])) {
             continue;
@@ -384,6 +503,7 @@ function fetchLastfmRecentAlbumCounts($username, $targetTracks = 400) {
 
 function fetchListenbrainzRecentAlbumCounts($username, $targetTracks = 400) {
     if (empty($username)) {
+        setImportApiError('ListenBrainz', 'Bitte einen ListenBrainz-Username eingeben.');
         return [];
     }
 
@@ -403,7 +523,19 @@ function fetchListenbrainzRecentAlbumCounts($username, $targetTracks = 400) {
             $url .= '&max_ts=' . $maxTs;
         }
 
-        $data = fetchJson($url, $headers);
+        $result = fetchJsonDetailed($url, $headers);
+        if (!$result['ok']) {
+            setImportApiError('ListenBrainz', 'ListenBrainz-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.'));
+            return [];
+        }
+
+        $data = $result['data'];
+        if (($data['code'] ?? 200) !== 200) {
+            $errorMessage = trim((string)($data['error'] ?? $data['message'] ?? 'Unbekannter Fehler'));
+            setImportApiError('ListenBrainz', 'ListenBrainz meldet einen Fehler: ' . $errorMessage);
+            return [];
+        }
+
         $listens = $data['payload']['listens'] ?? [];
         if (empty($listens)) {
             break;
@@ -528,6 +660,7 @@ $messageType = 'success'; // Default message style
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         $action = $_POST['action'];
+        clearImportApiError();
 
         if ($action === 'sync_playcounts') {
             $source = $_POST['source'] ?? 'lastfm';
@@ -624,8 +757,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $candidateSource = $source;
 
                 if (empty($candidates)) {
-                    $message = "ℹ️ Checked Top $topLimit from $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
-                    $messageType = 'info';
+                    $apiError = getImportApiError();
+                    if ($apiError !== null) {
+                        $message = "❌ {$apiError['source']} Fehler: {$apiError['message']}";
+                        $messageType = 'error';
+                    } else {
+                        $message = "ℹ️ Checked Top $topLimit from $sourceLabel. No new albums found that meet the minimum criteria ($min_plays plays).";
+                        $messageType = 'info';
+                    }
                 } else {
                     $message = "✅ Imported preview from Top $topLimit ($sourceLabel): found " . count($candidates) . ' new candidates!';
                 }
@@ -657,8 +796,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $candidateSource = $source;
 
                 if (empty($candidates)) {
-                    $message = "ℹ️ Searched $modeLabel via $sourceLabel. No new albums found.";
-                    $messageType = 'info';
+                    $apiError = getImportApiError();
+                    if ($apiError !== null) {
+                        $message = "❌ {$apiError['source']} Fehler: {$apiError['message']}";
+                        $messageType = 'error';
+                    } else {
+                        $message = "ℹ️ Searched $modeLabel via $sourceLabel. No new albums found.";
+                        $messageType = 'info';
+                    }
                 } else {
                     $message = "✅ Analyzed $modeLabel via $sourceLabel and found " . count($candidates) . ' new candidates!';
                 }
