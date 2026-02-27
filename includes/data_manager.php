@@ -24,7 +24,8 @@ function loadCsv($filename) {
 }
 
 function saveCsv($filename, $data) {
-    $handle = fopen($filename, "w");
+    $tmpFile = $filename . '.tmp';
+    $handle = fopen($tmpFile, "w");
 
     if ($handle === false) {
         return;
@@ -43,6 +44,38 @@ function saveCsv($filename, $data) {
     }
 
     fclose($handle);
+
+    if (!file_exists($tmpFile) || filesize($tmpFile) <= 0) {
+        if (file_exists($tmpFile)) {
+            unlink($tmpFile);
+        }
+
+        return;
+    }
+
+    $bak1 = $filename . '.bak1';
+    $bak2 = $filename . '.bak2';
+    $bak3 = $filename . '.bak3';
+
+    if (file_exists($bak3)) {
+        unlink($bak3);
+    }
+
+    if (file_exists($bak2)) {
+        rename($bak2, $bak3);
+    }
+
+    if (file_exists($bak1)) {
+        rename($bak1, $bak2);
+    }
+
+    if (file_exists($filename)) {
+        rename($filename, $bak1);
+    }
+
+    if (!rename($tmpFile, $filename)) {
+        unlink($tmpFile);
+    }
 }
 
 function moveToQueue($artist, $album, $elo, $duels, $playcount) {
