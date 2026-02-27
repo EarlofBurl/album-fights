@@ -100,7 +100,7 @@ Inspired by Flickchart, but focused on albums.
 If you prefer a native desktop build, download it from the GitHub Releases page:
 
 - **Desktop release (Windows + Linux AppImage):**
-  https://github.com/EarlofBurl/album-fights/releases/tag/desktop
+  https://github.com/EarlofBurl/album-fights/releases/
 
 ### Docker (with Compose)
 
