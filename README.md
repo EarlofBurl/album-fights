@@ -54,7 +54,7 @@ Inspired by Flickchart, but focused on albums.
   - top artists (power score)
   - best/worst genres and decades (derived from cached metadata)
 - **The List page**:
-  - sortable columns (Artist/Album/Elo/Duels/Playcount)
+  - sortable columns (Artist/Album/Elo/Duels/Playcount/Wins/Losses/W-L ratio)
   - pagination (100 per page)
   - CSV export of current sorting
 
@@ -66,7 +66,7 @@ Inspired by Flickchart, but focused on albums.
   - fuzzy duplicate detection grouped by probable album matches
   - delete single duplicate rows
   - merge duplicate groups by selecting a primary entry
-  - merge behavior: `Playcount` + `Duels` are summed, `Elo` is averaged
+  - merge behavior: `Playcount` + `Duels` + `Wins` + `Losses` are summed, `Elo` is averaged
 
 ### AI features
 - **AI Nerd comments** every 25 duels (optional).

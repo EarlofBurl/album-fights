@@ -123,16 +123,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (count($indices) >= 2 && in_array($primaryIndex, $indices, true) && isset($albums[$primaryIndex])) {
             $sumPlaycount = 0;
             $sumDuels = 0;
+            $sumWins = 0;
+            $sumLosses = 0;
             $eloTotal = 0;
 
             foreach ($indices as $idx) {
                 $sumPlaycount += (int)$albums[$idx]['Playcount'];
                 $sumDuels += (int)$albums[$idx]['Duels'];
+                $sumWins += (int)($albums[$idx]['Wins'] ?? 0);
+                $sumLosses += (int)($albums[$idx]['Losses'] ?? 0);
                 $eloTotal += (float)$albums[$idx]['Elo'];
             }
 
             $albums[$primaryIndex]['Playcount'] = $sumPlaycount;
             $albums[$primaryIndex]['Duels'] = $sumDuels;
+            $albums[$primaryIndex]['Wins'] = $sumWins;
+            $albums[$primaryIndex]['Losses'] = $sumLosses;
             $albums[$primaryIndex]['Elo'] = $eloTotal / count($indices);
 
             rsort($indices);
@@ -144,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             saveCsv(FILE_ELO, $albums);
-            $message = '✅ Duplicate group merged (plays + duels summed, Elo averaged).';
+            $message = '✅ Duplicate group merged (plays/duels/wins/losses summed, Elo averaged).';
         }
     }
 }
@@ -244,7 +250,7 @@ require_once 'includes/header.php';
                                         <input type="radio" name="primary_index" value="<?= (int)$idx ?>" <?= $idx === $group[0] ? 'checked' : '' ?>>
                                         <span>
                                             <strong><?= htmlspecialchars($entry['Artist']) ?></strong> — <?= htmlspecialchars($entry['Album']) ?><br>
-                                            <small style="color: var(--text-muted);">Elo: <?= round((float)$entry['Elo'], 2) ?> | Plays: <?= (int)$entry['Playcount'] ?> | Duels: <?= (int)$entry['Duels'] ?></small>
+                                            <small style="color: var(--text-muted);">Elo: <?= round((float)$entry['Elo'], 2) ?> | Plays: <?= (int)$entry['Playcount'] ?> | Duels: <?= (int)$entry['Duels'] ?> | W/L: <?= (int)($entry['Wins'] ?? 0) ?>/<?= (int)($entry['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($entry['Wins'] ?? 0, $entry['Losses'] ?? 0)) ?>)</small>
                                         </span>
                                     </label>
 

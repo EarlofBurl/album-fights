@@ -86,6 +86,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $albums[$idxB]['Elo'] = $newRatingB;
             $albums[$idxA]['Duels']++;
             $albums[$idxB]['Duels']++;
+
+            if ($scoreA == 1) {
+                $albums[$idxA]['Wins'] = (int)($albums[$idxA]['Wins'] ?? 0) + 1;
+                $albums[$idxB]['Losses'] = (int)($albums[$idxB]['Losses'] ?? 0) + 1;
+            } elseif ($scoreA == 0) {
+                $albums[$idxB]['Wins'] = (int)($albums[$idxB]['Wins'] ?? 0) + 1;
+                $albums[$idxA]['Losses'] = (int)($albums[$idxA]['Losses'] ?? 0) + 1;
+            }
             
             saveCsv(FILE_ELO, $albums);
             
@@ -102,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $targetIdx = (int)$_POST['targetIdx'];
         if (isset($albums[$targetIdx])) {
             if ($action === 'queue') {
-                moveToQueue($albums[$targetIdx]['Artist'], $albums[$targetIdx]['Album'], $albums[$targetIdx]['Elo'], $albums[$targetIdx]['Duels'], $albums[$targetIdx]['Playcount']);
+                moveToQueue($albums[$targetIdx]['Artist'], $albums[$targetIdx]['Album'], $albums[$targetIdx]['Elo'], $albums[$targetIdx]['Duels'], $albums[$targetIdx]['Playcount'], $albums[$targetIdx]['Wins'] ?? 0, $albums[$targetIdx]['Losses'] ?? 0);
             }
             array_splice($albums, $targetIdx, 1);
             saveCsv(FILE_ELO, $albums);
@@ -353,7 +361,7 @@ require_once 'includes/header.php';
                 <?= !empty($infoA['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoA['genres'], 0, 4))) : 'No genres found' ?>
             </div>
             
-            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumA['Elo']) ?> | Plays: <?= $albumA['Playcount'] ?></p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumA['Elo']) ?> | Plays: <?= $albumA['Playcount'] ?> | W/L: <?= (int)($albumA['Wins'] ?? 0) ?>/<?= (int)($albumA['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($albumA['Wins'] ?? 0, $albumA['Losses'] ?? 0)) ?>)</p>
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoA['local_image'])): ?>
@@ -427,7 +435,7 @@ require_once 'includes/header.php';
                 <?= !empty($infoB['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoB['genres'], 0, 4))) : 'No genres found' ?>
             </div>
 
-            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumB['Elo']) ?> | Plays: <?= $albumB['Playcount'] ?></p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round($albumB['Elo']) ?> | Plays: <?= $albumB['Playcount'] ?> | W/L: <?= (int)($albumB['Wins'] ?? 0) ?>/<?= (int)($albumB['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($albumB['Wins'] ?? 0, $albumB['Losses'] ?? 0)) ?>)</p>
             
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoB['local_image'])): ?>
@@ -484,7 +492,7 @@ if (empty($review_text)):
 <div class="top-list">
     <h3>🏆 Top 20 Albums</h3>
     <table>
-        <thead><tr><th class="rank-col">#</th><th>Artist</th><th>Album</th><th>Elo</th></tr></thead>
+        <thead><tr><th class="rank-col">#</th><th>Artist</th><th>Album</th><th>Elo</th><th>W/L Ratio</th></tr></thead>
         <tbody>
             <?php foreach ($top20 as $index => $album): ?>
                 <tr>
@@ -492,6 +500,7 @@ if (empty($review_text)):
                     <td style="color: var(--accent); font-weight: bold;"><a href="<?= htmlspecialchars(getArtistExternalUrl($album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Artist']) ?></a></td>
                     <td><a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Album']) ?></a></td>
                     <td style="color: var(--text-muted); font-size: 0.9rem;"><?= round($album['Elo']) ?></td>
+                    <td style="color: var(--text-muted); font-size: 0.9rem;"><?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($album['Wins'] ?? 0, $album['Losses'] ?? 0)) ?>)</td>
                 </tr>
             <?php endforeach; ?>
         </tbody>

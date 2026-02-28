@@ -622,7 +622,9 @@ function importAlbums($selectedCandidates, $destination) {
                 'Album' => $item['album'],
                 'Elo' => 1200,
                 'Duels' => 0,
-                'Playcount' => (int)$item['playcount']
+                'Playcount' => (int)$item['playcount'],
+                'Wins' => 0,
+                'Losses' => 0
             ];
             $existing[$key] = true;
             $addedCount++;
@@ -643,7 +645,7 @@ function importAlbums($selectedCandidates, $destination) {
                 continue;
             }
 
-            moveToQueue($item['artist'], $item['album'], 1200, 0, (int)$item['playcount']);
+            moveToQueue($item['artist'], $item['album'], 1200, 0, (int)$item['playcount'], 0, 0);
             $existing[$key] = true;
             $addedCount++;
         }

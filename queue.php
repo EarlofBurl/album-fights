@@ -52,6 +52,7 @@ require_once 'includes/header.php';
                 <tr style="border-bottom: 2px solid var(--border);">
                     <th style="padding: 15px 10px; text-align: left; color: var(--text-muted);">Artist</th>
                     <th style="padding: 15px 10px; text-align: left; color: var(--text-muted);">Album</th>
+                    <th style="padding: 15px 10px; text-align: left; color: var(--text-muted);">Stats</th>
                     <th style="padding: 15px 10px; text-align: right; color: var(--text-muted);">Actions</th>
                 </tr>
             </thead>
@@ -63,6 +64,10 @@ require_once 'includes/header.php';
                         </td>
                         <td style="padding: 15px 10px;">
                             <?= htmlspecialchars($album['Album']) ?>
+                        </td>
+                        <td style="padding: 15px 10px; color: var(--text-muted); font-size: 0.9rem;">
+                            Elo: <?= round((float)$album['Elo']) ?> | Duels: <?= (int)$album['Duels'] ?><br>
+                            W/L: <?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($album['Wins'] ?? 0, $album['Losses'] ?? 0)) ?>)
                         </td>
                         <td style="padding: 15px 10px; text-align: right;">
                             <div style="display: flex; gap: 10px; justify-content: flex-end;">

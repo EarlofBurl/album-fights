@@ -5,17 +5,34 @@ require_once 'includes/api_manager.php';
 
 $albums = loadCsv(FILE_ELO);
 
-$allowedSortFields = ['Artist', 'Album', 'Elo', 'Duels', 'Playcount'];
+$allowedSortFields = ['Artist', 'Album', 'Elo', 'Duels', 'Playcount', 'Wins', 'Losses', 'Ratio'];
 $sortBy = $_GET['sort'] ?? 'Elo';
 $sortBy = in_array($sortBy, $allowedSortFields, true) ? $sortBy : 'Elo';
 
 $order = strtolower($_GET['order'] ?? 'desc');
 $order = $order === 'asc' ? 'asc' : 'desc';
 
+
+function compareAlbumsBySortField(array $a, array $b, string $sortBy): int {
+    if ($sortBy === 'Ratio') {
+        $ratioA = (float)($a['Losses'] ?? 0) === 0.0
+            ? ((int)($a['Wins'] ?? 0) > 0 ? INF : 0.0)
+            : ((int)($a['Wins'] ?? 0) / (int)($a['Losses'] ?? 0));
+        $ratioB = (float)($b['Losses'] ?? 0) === 0.0
+            ? ((int)($b['Wins'] ?? 0) > 0 ? INF : 0.0)
+            : ((int)($b['Wins'] ?? 0) / (int)($b['Losses'] ?? 0));
+
+        return $ratioA <=> $ratioB;
+    }
+
+    return $a[$sortBy] <=> $b[$sortBy];
+}
+
+
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $exportAlbums = $albums;
     usort($exportAlbums, function ($a, $b) use ($sortBy, $order) {
-        $cmp = $a[$sortBy] <=> $b[$sortBy];
+        $cmp = compareAlbumsBySortField($a, $b, $sortBy);
         if ($cmp === 0) {
             $cmp = $a['Artist'] <=> $b['Artist'];
             if ($cmp === 0) {
@@ -29,7 +46,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="the-list.csv"');
 
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount']);
+    fputcsv($output, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount', 'Wins', 'Losses', 'Ratio']);
     foreach ($exportAlbums as $row) {
         fputcsv($output, [
             $row['Artist'],
@@ -37,6 +54,9 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
             round((float)$row['Elo'], 2),
             (int)$row['Duels'],
             (int)$row['Playcount'],
+            (int)($row['Wins'] ?? 0),
+            (int)($row['Losses'] ?? 0),
+            calculateWinLossRatio($row['Wins'] ?? 0, $row['Losses'] ?? 0),
         ]);
     }
     fclose($output);
@@ -44,7 +64,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 }
 
 usort($albums, function ($a, $b) use ($sortBy, $order) {
-    $cmp = $a[$sortBy] <=> $b[$sortBy];
+    $cmp = compareAlbumsBySortField($a, $b, $sortBy);
     if ($cmp === 0) {
         $cmp = $a['Artist'] <=> $b['Artist'];
         if ($cmp === 0) {
@@ -203,6 +223,7 @@ require_once 'includes/header.php';
                     <?php endif; ?>
                     <div class="top25-title"><a href="<?= htmlspecialchars(getAlbumExternalUrl($album['Artist'], $album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Album']) ?></a></div>
                     <div class="top25-artist"><a href="<?= htmlspecialchars(getArtistExternalUrl($album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars($album['Artist']) ?></a></div>
+                    <div class="top25-artist">W/L: <?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($album['Wins'] ?? 0, $album['Losses'] ?? 0)) ?>)</div>
                 </div>
             <?php endforeach; ?>
         </div>
@@ -223,12 +244,13 @@ require_once 'includes/header.php';
                     <th><?= sortLink('Elo', 'Elo', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
                     <th><?= sortLink('Duels', 'Duels', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
                     <th><?= sortLink('Playcount', 'Playcount', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
+                    <th><?= sortLink('Ratio', 'W/L Ratio', $sortBy, $order, $page, $nextOrder, $arrow) ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($visibleAlbums)): ?>
                     <tr>
-                        <td colspan="6" style="text-align: center;">No albums found.</td>
+                        <td colspan="7" style="text-align: center;">No albums found.</td>
                     </tr>
                 <?php else: ?>
                     <?php foreach ($visibleAlbums as $index => $album): ?>
@@ -239,6 +261,7 @@ require_once 'includes/header.php';
                             <td><?= round((float)$album['Elo']) ?></td>
                             <td><?= (int)$album['Duels'] ?></td>
                             <td><?= (int)$album['Playcount'] ?></td>
+                            <td><?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($album['Wins'] ?? 0, $album['Losses'] ?? 0)) ?>)</td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
