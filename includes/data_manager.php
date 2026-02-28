@@ -1,19 +1,69 @@
 <?php
+function calculateWinLossRatio($wins, $losses) {
+    $wins = (int)$wins;
+    $losses = (int)$losses;
+
+    if ($losses === 0) {
+        return $wins > 0 ? 'INF' : '0.00';
+    }
+
+    return number_format($wins / $losses, 2, '.', '');
+}
+
+function normalizeAlbumRow(array $row): array {
+    $wins = (int)($row['Wins'] ?? 0);
+    $losses = (int)($row['Losses'] ?? 0);
+
+    return [
+        'Artist' => $row['Artist'] ?? 'Unknown',
+        'Album' => $row['Album'] ?? 'Unknown',
+        'Elo' => (float)($row['Elo'] ?? 1200),
+        'Duels' => (int)($row['Duels'] ?? 0),
+        'Playcount' => (int)($row['Playcount'] ?? 0),
+        'Wins' => $wins,
+        'Losses' => $losses,
+        'Ratio' => $row['Ratio'] ?? calculateWinLossRatio($wins, $losses)
+    ];
+}
+
 function loadCsv($filename) {
     $data = [];
 
     if (file_exists($filename) && ($handle = fopen($filename, "r")) !== false) {
         $headers = fgetcsv($handle, 0, ',', '"', '');
+        $headerMap = [];
+        if (is_array($headers)) {
+            foreach ($headers as $idx => $header) {
+                $headerMap[strtolower(trim((string)$header))] = $idx;
+            }
+        }
 
         while (($row = fgetcsv($handle, 0, ',', '"', '')) !== false) {
             if (count($row) >= 5) {
-                $data[] = [
-                    'Artist' => $row[0] ?? 'Unknown',
-                    'Album' => $row[1] ?? 'Unknown',
-                    'Elo' => (float)($row[2] ?? 1200),
-                    'Duels' => (int)($row[3] ?? 0),
-                    'Playcount' => (int)($row[4] ?? 0)
-                ];
+                if (!empty($headerMap)) {
+                    $wins = (int)($row[$headerMap['wins'] ?? -1] ?? 0);
+                    $losses = (int)($row[$headerMap['losses'] ?? -1] ?? 0);
+                    $ratio = $row[$headerMap['ratio'] ?? -1] ?? calculateWinLossRatio($wins, $losses);
+
+                    $data[] = normalizeAlbumRow([
+                        'Artist' => $row[$headerMap['artist'] ?? 0] ?? 'Unknown',
+                        'Album' => $row[$headerMap['album'] ?? 1] ?? 'Unknown',
+                        'Elo' => $row[$headerMap['elo'] ?? 2] ?? 1200,
+                        'Duels' => $row[$headerMap['duels'] ?? 3] ?? 0,
+                        'Playcount' => $row[$headerMap['playcount'] ?? 4] ?? 0,
+                        'Wins' => $wins,
+                        'Losses' => $losses,
+                        'Ratio' => $ratio,
+                    ]);
+                } else {
+                    $data[] = normalizeAlbumRow([
+                        'Artist' => $row[0] ?? 'Unknown',
+                        'Album' => $row[1] ?? 'Unknown',
+                        'Elo' => $row[2] ?? 1200,
+                        'Duels' => $row[3] ?? 0,
+                        'Playcount' => $row[4] ?? 0,
+                    ]);
+                }
             }
         }
 
@@ -31,16 +81,21 @@ function saveCsv($filename, $data) {
         return;
     }
 
-    fputcsv($handle, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount'], ',', '"', '');
+    fputcsv($handle, ['Artist', 'Album', 'Elo', 'Duels', 'Playcount', 'Wins', 'Losses', 'Ratio'], ',', '"', '');
 
     foreach ($data as $row) {
-        $artist = $row['Artist'] ?? 'Unknown';
-        $album = $row['Album'] ?? 'Unknown';
-        $elo = $row['Elo'] ?? 1200;
-        $duels = $row['Duels'] ?? 0;
-        $playcount = $row['Playcount'] ?? 0;
+        $normalized = normalizeAlbumRow($row);
 
-        fputcsv($handle, [$artist, $album, $elo, $duels, $playcount], ',', '"', '');
+        $artist = $normalized['Artist'];
+        $album = $normalized['Album'];
+        $elo = $normalized['Elo'];
+        $duels = $normalized['Duels'];
+        $playcount = $normalized['Playcount'];
+        $wins = $normalized['Wins'];
+        $losses = $normalized['Losses'];
+        $ratio = calculateWinLossRatio($wins, $losses);
+
+        fputcsv($handle, [$artist, $album, $elo, $duels, $playcount, $wins, $losses, $ratio], ',', '"', '');
     }
 
     fclose($handle);
@@ -78,9 +133,17 @@ function saveCsv($filename, $data) {
     }
 }
 
-function moveToQueue($artist, $album, $elo, $duels, $playcount) {
+function moveToQueue($artist, $album, $elo, $duels, $playcount, $wins = 0, $losses = 0) {
     $queue = loadCsv(FILE_QUEUE);
-    $queue[] = ['Artist' => $artist, 'Album' => $album, 'Elo' => $elo, 'Duels' => $duels, 'Playcount' => $playcount];
+    $queue[] = normalizeAlbumRow([
+        'Artist' => $artist,
+        'Album' => $album,
+        'Elo' => $elo,
+        'Duels' => $duels,
+        'Playcount' => $playcount,
+        'Wins' => $wins,
+        'Losses' => $losses,
+    ]);
     saveCsv(FILE_QUEUE, $queue);
 }
 

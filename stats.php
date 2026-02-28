@@ -232,7 +232,7 @@ require_once 'includes/header.php';
                 <?php foreach ($hiddenGems as $a): ?>
                     <li style="margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;">
                         <strong style="color: #fff;"><?= htmlspecialchars($a['Artist']) ?></strong> - <?= htmlspecialchars($a['Album']) ?><br>
-                        <small>Elo: <?= round($a['Elo']) ?> | Plays: <?= $a['Playcount'] ?></small>
+                        <small>Elo: <?= round($a['Elo']) ?> | Plays: <?= $a['Playcount'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($a['Wins'] ?? 0, $a['Losses'] ?? 0)) ?>)</small>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -245,7 +245,7 @@ require_once 'includes/header.php';
                 <?php foreach ($disappointments as $a): ?>
                     <li style="margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;">
                         <strong style="color: #fff;"><?= htmlspecialchars($a['Artist']) ?></strong> - <?= htmlspecialchars($a['Album']) ?><br>
-                        <small>Elo: <?= round($a['Elo']) ?> | Plays: <?= $a['Playcount'] ?></small>
+                        <small>Elo: <?= round($a['Elo']) ?> | Plays: <?= $a['Playcount'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($a['Wins'] ?? 0, $a['Losses'] ?? 0)) ?>)</small>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -258,7 +258,7 @@ require_once 'includes/header.php';
                 <?php foreach ($veterans as $a): ?>
                     <li style="margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;">
                         <strong style="color: #fff;"><?= htmlspecialchars($a['Artist']) ?></strong> - <?= htmlspecialchars($a['Album']) ?><br>
-                        <small><?= $a['Duels'] ?> Duels fought</small>
+                        <small><?= $a['Duels'] ?> Duels fought | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(calculateWinLossRatio($a['Wins'] ?? 0, $a['Losses'] ?? 0)) ?>)</small>
                     </li>
                 <?php endforeach; ?>
             </ul>
