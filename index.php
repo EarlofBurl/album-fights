@@ -159,7 +159,7 @@ if ($albumB !== null) {
     $albumB['Rank'] = $rankByIndex[$idxB] ?? null;
 }
 
-$top20 = $albumRepo->getTop(20);
+$top20 = $albumRepo->getTop(20, $albums);
 
 $csrfField = Security::csrfField();
 

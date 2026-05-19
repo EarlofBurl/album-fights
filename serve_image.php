@@ -1,10 +1,6 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/includes/config.php';
-
-use App\Core\Config;
-
 $file = $_GET['file'] ?? '';
 
 if (empty($file) || !preg_match('/^album_[a-f0-9]{32}\.jpg$/', $file)) {
@@ -12,7 +8,19 @@ if (empty($file) || !preg_match('/^album_[a-f0-9]{32}\.jpg$/', $file)) {
     exit('Invalid image request');
 }
 
-$filePath = Config::get()->getCacheDir() . $file;
+// Resolve cache dir the same way Config does, but without bootstrapping the whole app
+$cacheDir = __DIR__ . '/cache/';
+
+$electronPath = getenv('APP_USER_DATA_PATH') ?: ($_SERVER['APP_USER_DATA_PATH'] ?? '');
+if (!empty($electronPath)) {
+    $cacheDir = rtrim(str_replace('\\', '/', $electronPath), '/') . '/AlbumFightsCache/';
+} elseif (getenv('APPDATA')) {
+    $cacheDir = str_replace('\\', '/', (string)getenv('LOCALAPPDATA')) . '/AlbumFights/cache/';
+} elseif (getenv('FLATPAK_ID')) {
+    $cacheDir = rtrim((string)getenv('XDG_CACHE_HOME'), '/') . '/AlbumFightsCache/';
+}
+
+$filePath = $cacheDir . $file;
 
 if (file_exists($filePath)) {
     $lastModified = filemtime($filePath);

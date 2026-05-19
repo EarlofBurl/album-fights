@@ -9,17 +9,47 @@ use App\Repository\SettingsRepository;
 
 class StatsService
 {
+    private string $cacheFile;
+
     public function __construct(
         private AlbumRepository $albumRepo,
         private SettingsRepository $settings,
         private Config $config
     ) {
+        $this->cacheFile = $this->config->getDataDir() . 'stats_cache.json';
     }
 
     /**
      * @return array<string, mixed>
      */
     public function buildStats(): array
+    {
+        $eloFile = $this->config->getEloFile();
+        $eloMtime = file_exists($eloFile) ? filemtime($eloFile) : 0;
+
+        // Return cached stats if CSV hasn't changed
+        if (file_exists($this->cacheFile)) {
+            $cached = json_decode(file_get_contents($this->cacheFile), true);
+            if (is_array($cached) && ($cached['elo_mtime'] ?? 0) >= $eloMtime) {
+                return $cached['data'];
+            }
+        }
+
+        $stats = $this->computeStats();
+
+        // Write cache
+        file_put_contents($this->cacheFile, json_encode([
+            'elo_mtime' => $eloMtime,
+            'data'      => $stats,
+        ]));
+
+        return $stats;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function computeStats(): array
     {
         $albums = $this->albumRepo->loadElo();
         $total  = count($albums);
@@ -28,7 +58,7 @@ class StatsService
         $sortedByElo = $albums;
         usort($sortedByElo, fn(array $a, array $b): int => $b['Elo'] <=> $a['Elo']);
         $top10 = array_slice($sortedByElo, 0, 10);
-        $flop10 = array_slice(array_reverse($sortedByElo), 0, 10);
+        $flop10 = array_slice($sortedByElo, -10, 10);
 
         $sortedByDuels = $albums;
         usort($sortedByDuels, fn(array $a, array $b): int => $b['Duels'] <=> $a['Duels']);
@@ -72,7 +102,6 @@ class StatsService
             $cacheBase = $metaService->getAlbumCacheBaseName((string)$a['Artist'], (string)$a['Album']);
             $jsonFile  = $this->config->getCacheDir() . $cacheBase . '.json';
 
-            // legacy fallback
             if (!file_exists($jsonFile)) {
                 $legacy = preg_replace('/[^a-zA-Z0-9_-]/', '_', strtolower('album_' . $a['Artist'] . '_' . $a['Album']));
                 $legacyFile = $this->config->getCacheDir() . $legacy . '.json';

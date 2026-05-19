@@ -95,13 +95,20 @@ require __DIR__ . '/partials/header.php';
                 <div class="form-group">
                     <input type="text" name="username" class="form-control" value="<?= htmlspecialchars($importUsernameValue) ?>" placeholder="Username">
                 </div>
-                <div class="form-group flex-row">
-                    <select name="fetch_mode" class="form-control" style="flex: 1;">
-                        <option value="recent">Recent albums</option>
-                        <option value="top">Most played (Top albums)</option>
+                <div class="form-group flex-row" id="mode-row">
+                    <select name="fetch_mode" id="fetch_mode" class="form-control" style="flex: 1;">
+                        <option value="recent">Recent top albums</option>
+                        <option value="top">Most played (all time)</option>
                         <option value="liked">Liked / Starred albums (Subsonic only)</option>
                     </select>
-                    <select name="top_limit" class="form-control" style="flex: 0 0 120px;">
+                    <select name="period" id="period_select" class="form-control" style="flex: 0 0 140px;">
+                        <option value="7day">Last 7 days</option>
+                        <option value="1month" selected>Last month</option>
+                        <option value="3month">Last 3 months</option>
+                        <option value="6month">Last 6 months</option>
+                        <option value="12month">Last 12 months</option>
+                    </select>
+                    <select name="top_limit" id="top_limit" class="form-control" style="flex: 0 0 120px; display: none;">
                         <option value="100">Top 100</option>
                         <option value="200">Top 200</option>
                         <option value="500">Top 500</option>
@@ -197,6 +204,29 @@ require __DIR__ . '/partials/header.php';
                     selectAll.addEventListener('change', function() {
                         checkboxes.forEach(cb => cb.checked = selectAll.checked);
                     });
+                }
+
+                const modeSelect = document.getElementById('fetch_mode');
+                const periodSelect = document.getElementById('period_select');
+                const topLimit = document.getElementById('top_limit');
+
+                function toggleFields() {
+                    const mode = modeSelect.value;
+                    if (mode === 'top') {
+                        periodSelect.style.display = 'none';
+                        topLimit.style.display = 'block';
+                    } else if (mode === 'liked') {
+                        periodSelect.style.display = 'none';
+                        topLimit.style.display = 'none';
+                    } else {
+                        periodSelect.style.display = 'block';
+                        topLimit.style.display = 'none';
+                    }
+                }
+
+                if (modeSelect) {
+                    modeSelect.addEventListener('change', toggleFields);
+                    toggleFields();
                 }
             });
         </script>

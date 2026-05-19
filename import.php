@@ -82,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $lastfmUser = $username;
         }
 
-        $result = $import->fetchCandidates($source, $mode, $username, $topLimit);
+        $period = Security::getString($_POST, 'period', '1month');
+        $result = $import->fetchCandidates($source, $mode, $username, $topLimit, $period);
         $candidates = $result['candidates'];
         $candidateSource = $source;
 
@@ -92,16 +93,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             default        => 'Last.fm',
         };
 
+        $periodLabel = match ($period) {
+            '7day'    => 'last 7 days',
+            '1month'  => 'last month',
+            '3month'  => 'last 3 months',
+            '6month'  => 'last 6 months',
+            '12month' => 'last 12 months',
+            default   => 'recent period',
+        };
+
+        $modeLabel = $mode === 'top' ? 'Top ' . $topLimit : 'Recent top albums (' . $periodLabel . ')';
+
         if (empty($candidates)) {
             if ($result['error'] !== null) {
                 $message = "❌ {$result['error']['source']} Fehler: {$result['error']['message']}";
                 $messageType = 'error';
             } else {
-                $message = "ℹ️ Searched via {$sourceLabel}. No new albums found.";
+                $message = "ℹ️ Searched {$modeLabel} via {$sourceLabel}. No new albums found.";
                 $messageType = 'info';
             }
         } else {
-            $message = "✅ Found " . count($candidates) . " new candidates via {$sourceLabel}!";
+            $message = "✅ Found " . count($candidates) . " new candidates ({$modeLabel}) via {$sourceLabel}!";
         }
     }
 

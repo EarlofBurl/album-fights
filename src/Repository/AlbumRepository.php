@@ -80,13 +80,14 @@ class AlbumRepository
     }
 
     /**
+     * @param list<array<string, mixed>>|null $albums Pre-loaded album data to avoid redundant CSV reads
      * @return list<array<string, mixed>>
      */
-    public function getTop(int $limit = 100): array
+    public function getTop(int $limit = 100, ?array $albums = null): array
     {
-        $albums = $this->loadElo();
-        usort($albums, fn(array $a, array $b): int => $b['Elo'] <=> $a['Elo']);
-        return array_slice($albums, 0, $limit);
+        $data = $albums ?? $this->loadElo();
+        usort($data, fn(array $a, array $b): int => $b['Elo'] <=> $a['Elo']);
+        return array_slice($data, 0, $limit);
     }
 
     public function getTop50Text(): string

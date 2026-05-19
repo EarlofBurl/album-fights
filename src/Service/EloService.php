@@ -101,16 +101,18 @@ class EloService
             return [null, null];
         }
 
-        $buildRankedSubset = function (int $start, int $end) use ($albums, $total): array {
+        // Pre-sort once by Elo descending and keep original index
+        $ranked = [];
+        foreach ($albums as $k => $album) {
+            $album['_OriginalIndex'] = $k;
+            $ranked[] = $album;
+        }
+        usort($ranked, fn(array $a, array $b): int => $b['Elo'] <=> $a['Elo']);
+
+        $buildRankedSubset = function (int $start, int $end) use ($ranked, $total): array {
             if ($total <= $start + 1) {
                 return [];
             }
-            $ranked = [];
-            foreach ($albums as $k => $album) {
-                $album['_OriginalIndex'] = $k;
-                $ranked[] = $album;
-            }
-            usort($ranked, fn(array $a, array $b): int => $b['Elo'] <=> $a['Elo']);
             $actualEnd = min($end, $total - 1);
             if ($actualEnd <= $start) {
                 return [];

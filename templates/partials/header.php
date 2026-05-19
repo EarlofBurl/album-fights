@@ -225,10 +225,33 @@ $duelCount = $_SESSION['duel_count'] ?? 0;
         </div>
     </div>
 
+    <!-- Loading overlay for duel page API calls -->
+    <div id="duel-loading-overlay" style="display:none; position:fixed; inset:0; background:rgba(18,18,18,0.92); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:var(--text-main);">
+        <div style="font-size:2.5rem; margin-bottom:16px; animation:pulse 1.5s infinite;">🎵</div>
+        <div style="font-size:1.3rem; font-weight:bold; margin-bottom:8px;">Fetching album info...</div>
+        <div style="color:var(--text-muted); font-size:0.95rem;">Please wait while we cache the next albums</div>
+        <style>
+            @keyframes pulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.6; transform: scale(1.1); }
+            }
+        </style>
+    </div>
+
     <script>
     document.addEventListener('submit', function(e) {
         const form = e.target;
         const buttons = form.querySelectorAll('button');
+
+        // Show loading overlay only for duel page forms that trigger a page reload
+        const isDuelForm = form.closest('.duel-container') !== null || form.closest('.duel-card') !== null;
+        if (isDuelForm) {
+            const overlay = document.getElementById('duel-loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'flex';
+            }
+        }
+
         setTimeout(() => {
             buttons.forEach(btn => {
                 btn.disabled = true;

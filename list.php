@@ -51,7 +51,7 @@ $visibleAlbums = array_slice($albums, $offset, $perPage);
 
 $nextOrder = $order === 'asc' ? 'desc' : 'asc';
 $arrow = $order === 'asc' ? '▲' : '▼';
-$topAlbums = $albumRepo->getTop(25);
+$topAlbums = $albumRepo->getTop(25, $albums);
 
 // CSV Export
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {

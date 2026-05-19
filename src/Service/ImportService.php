@@ -76,7 +76,7 @@ class ImportService
     /**
      * @return array{error: ?array{source: string, message: string}, candidates: list<array{artist: string, album: string, playcount: int}>}
      */
-    public function fetchCandidates(string $source, string $mode, string $username, int $topLimit): array
+    public function fetchCandidates(string $source, string $mode, string $username, int $topLimit, string $period = '1month'): array
     {
         $error = null;
         $existing = $this->albumRepo->buildExistingLookup();
@@ -104,8 +104,9 @@ class ImportService
 
         // Recent / Liked modes
         if ($source === 'listenbrainz') {
-            $counts = $this->fetchListenbrainzRecentCounts($username, 400, $error);
-            $candidates = $this->buildCandidatesFromCounts($counts, $existing, $minPlays);
+            $lbRange = $this->mapPeriodToListenbrainzRange($period);
+            $albums = $this->fetchListenbrainzTopAlbumsByRange($username, $lbRange, $error);
+            $candidates = $this->buildCandidatesFromAlbumRows($albums, $existing, $minPlays, true, $minPlays);
         } elseif ($source === 'subsonic' && $mode === 'liked') {
             $albums = $this->subsonic->fetchStarredAlbums(1000);
             $candidates = $this->buildCandidatesFromAlbumRows($albums, $existing, $minPlays, false, 1);
@@ -119,8 +120,8 @@ class ImportService
             }
             unset($c);
         } else {
-            $counts = $this->fetchLastfmRecentCounts($username, 400, $error);
-            $candidates = $this->buildCandidatesFromCounts($counts, $existing, $minPlays);
+            $albums = $this->fetchLastfmTopAlbumsByPeriod($username, $period, $error);
+            $candidates = $this->buildCandidatesFromAlbumRows($albums, $existing, $minPlays, true, $minPlays);
         }
 
         return ['error' => $error, 'candidates' => $candidates];
@@ -295,25 +296,6 @@ class ImportService
     }
 
     /**
-     * @param array<string, int> $counts
-     * @param array<string, true> $existingAlbums
-     * @return list<array{artist: string, album: string, playcount: int}>
-     */
-    private function buildCandidatesFromCounts(array $counts, array $existingAlbums, int $minPlays): array
-    {
-        $candidates = [];
-        foreach ($counts as $hash => $playcount) {
-            [$artist, $album] = explode('|||', $hash, 2);
-            $dbKey = strtolower(trim($artist) . '_' . trim($album));
-            if (!isset($existingAlbums[$dbKey]) && $playcount >= $minPlays) {
-                $candidates[] = ['artist' => $artist, 'album' => $album, 'playcount' => $playcount];
-            }
-        }
-        usort($candidates, fn(array $a, array $b): int => $b['playcount'] <=> $a['playcount']);
-        return $candidates;
-    }
-
-    /**
      * @return list<array{artist: string, album: string, playcount: int}>
      */
     private function fetchLastfmTopAlbums(string $username, int $limit, ?array &$error): array
@@ -356,54 +338,50 @@ class ImportService
     }
 
     /**
-     * @return array<string, int>
+     * @return list<array{artist: string, album: string, playcount: int}>
      */
-    private function fetchLastfmRecentCounts(string $username, int $targetTracks, ?array &$error): array
+    private function fetchLastfmTopAlbumsByPeriod(string $username, string $period, ?array &$error): array
     {
         $apiKey = $this->settings->getLastFmApiKey();
-        if (empty($username) || empty($apiKey)) {
-            $error = ['source' => 'Last.fm', 'message' => 'Last.fm nicht vollständig konfiguriert.'];
+        if (empty($username)) {
+            $error = ['source' => 'Last.fm', 'message' => 'Bitte einen Last.fm-Username eingeben.'];
+            return [];
+        }
+        if (empty($apiKey)) {
+            $error = ['source' => 'Last.fm', 'message' => 'Last.fm API-Key fehlt in der Konfiguration.'];
             return [];
         }
 
-        $albumCounts = [];
-        $pages = (int)ceil($targetTracks / 200);
-
-        for ($page = 1; $page <= $pages; $page++) {
-            $url = 'http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=' . urlencode($username)
-                . '&api_key=' . $apiKey . '&format=json&limit=200&page=' . $page;
-            $result = $this->http->fetchJson($url);
-
-            if (!$result['ok']) {
-                $error = ['source' => 'Last.fm', 'message' => 'Last.fm-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.')];
-                return [];
-            }
-
-            $data = $result['data'];
-            if (isset($data['error'])) {
-                $error = ['source' => 'Last.fm', 'message' => "Last.fm Fehler {$data['error']}: " . ($data['message'] ?? 'Unbekannter Fehler')];
-                return [];
-            }
-
-            $tracks = $data['recenttracks']['track'] ?? [];
-            if (isset($tracks['name'])) {
-                $tracks = [$tracks];
-            }
-
-            foreach ($tracks as $track) {
-                if (($track['@attr']['nowplaying'] ?? '') === 'true') {
-                    continue;
-                }
-                $artist = trim((string)($track['artist']['#text'] ?? $track['artist']['name'] ?? ''));
-                $album  = trim((string)($track['album']['#text'] ?? ''));
-                if ($artist !== '' && $album !== '') {
-                    $key = $artist . '|||' . $album;
-                    $albumCounts[$key] = ($albumCounts[$key] ?? 0) + 1;
-                }
-            }
+        $allowedPeriods = ['7day', '1month', '3month', '6month', '12month'];
+        if (!in_array($period, $allowedPeriods, true)) {
+            $period = '1month';
         }
 
-        return $albumCounts;
+        $url = "http://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=" . urlencode($username)
+            . "&api_key=" . $apiKey . "&format=json&limit=400&period=" . $period;
+        $result = $this->http->fetchJson($url);
+
+        if (!$result['ok']) {
+            $error = ['source' => 'Last.fm', 'message' => 'Last.fm-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.')];
+            return [];
+        }
+
+        $data = $result['data'];
+        if (isset($data['error'])) {
+            $error = ['source' => 'Last.fm', 'message' => "Last.fm Fehler {$data['error']}: " . ($data['message'] ?? 'Unbekannter Fehler')];
+            return [];
+        }
+
+        $results = [];
+        foreach ($data['topalbums']['album'] ?? [] as $alb) {
+            $artist = trim((string)($alb['artist']['name'] ?? ''));
+            $album  = trim((string)($alb['name'] ?? ''));
+            $plays  = (int)($alb['playcount'] ?? 0);
+            if ($artist !== '' && $album !== '') {
+                $results[] = ['artist' => $artist, 'album' => $album, 'playcount' => $plays];
+            }
+        }
+        return $results;
     }
 
     /**
@@ -448,9 +426,9 @@ class ImportService
     }
 
     /**
-     * @return array<string, int>
+     * @return list<array{artist: string, album: string, playcount: int}>
      */
-    private function fetchListenbrainzRecentCounts(string $username, int $targetTracks, ?array &$error): array
+    private function fetchListenbrainzTopAlbumsByRange(string $username, string $range, ?array &$error): array
     {
         if (empty($username)) {
             $error = ['source' => 'ListenBrainz', 'message' => 'Bitte einen ListenBrainz-Username eingeben.'];
@@ -462,59 +440,41 @@ class ImportService
             $headers[] = 'Authorization: Token ' . $this->settings->getListenbrainzApiKey();
         }
 
-        $albumCounts = [];
-        $remaining = $targetTracks;
-        $maxTs = null;
+        $url = 'https://api.listenbrainz.org/1/stats/user/' . rawurlencode($username) . '/releases?range=' . $range . '&count=400';
+        $result = $this->http->fetchJson($url, $headers);
 
-        while ($remaining > 0) {
-            $count = min(100, $remaining);
-            $url = 'https://api.listenbrainz.org/1/user/' . rawurlencode($username) . '/listens?count=' . $count;
-            if ($maxTs !== null) {
-                $url .= '&max_ts=' . $maxTs;
-            }
-
-            $result = $this->http->fetchJson($url, $headers);
-            if (!$result['ok']) {
-                $error = ['source' => 'ListenBrainz', 'message' => 'ListenBrainz-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.')];
-                return [];
-            }
-
-            $data = $result['data'];
-            if (($data['code'] ?? 200) !== 200) {
-                $error = ['source' => 'ListenBrainz', 'message' => 'ListenBrainz meldet einen Fehler: ' . ($data['error'] ?? $data['message'] ?? 'Unbekannter Fehler')];
-                return [];
-            }
-
-            $listens = $data['payload']['listens'] ?? [];
-            if (empty($listens)) {
-                break;
-            }
-
-            $lastTs = null;
-            foreach ($listens as $listen) {
-                $meta  = $listen['track_metadata'] ?? [];
-                $artist = trim((string)($meta['artist_name'] ?? ''));
-                $album  = trim((string)($meta['release_name'] ?? ''));
-                if ($artist !== '' && $album !== '') {
-                    $key = $artist . '|||' . $album;
-                    $albumCounts[$key] = ($albumCounts[$key] ?? 0) + 1;
-                }
-                $ts = $listen['listened_at'] ?? null;
-                if (is_numeric($ts)) {
-                    $lastTs = (int)$ts;
-                }
-            }
-
-            if ($lastTs === null) {
-                break;
-            }
-            $maxTs = $lastTs - 1;
-            $remaining -= count($listens);
-            if (count($listens) < $count) {
-                break;
-            }
+        if (!$result['ok']) {
+            $error = ['source' => 'ListenBrainz', 'message' => 'ListenBrainz-API nicht erreichbar: ' . ($result['error'] ?? 'Verbindung fehlgeschlagen.')];
+            return [];
         }
 
-        return $albumCounts;
+        $data = $result['data'];
+        if (($data['code'] ?? 200) !== 200) {
+            $error = ['source' => 'ListenBrainz', 'message' => 'ListenBrainz meldet einen Fehler: ' . ($data['error'] ?? $data['message'] ?? 'Unbekannter Fehler')];
+            return [];
+        }
+
+        $results = [];
+        foreach ($data['payload']['releases'] ?? [] as $release) {
+            $artist = trim((string)($release['artist_name'] ?? ''));
+            $album  = trim((string)($release['release_name'] ?? ''));
+            $plays  = (int)($release['listen_count'] ?? 0);
+            if ($artist !== '' && $album !== '') {
+                $results[] = ['artist' => $artist, 'album' => $album, 'playcount' => $plays];
+            }
+        }
+        return $results;
+    }
+
+    private function mapPeriodToListenbrainzRange(string $period): string
+    {
+        return match ($period) {
+            '7day'    => 'week',
+            '1month'  => 'month',
+            '3month'  => 'quarter',
+            '6month'  => 'half_yearly',
+            '12month' => 'year',
+            default   => 'month',
+        };
     }
 }
