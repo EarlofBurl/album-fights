@@ -178,6 +178,36 @@ Backup/migration: copy `/data` and `/cache`.
 
 ---
 
+## 🏗️ Project Structure
+
+```text
+src/
+  Core/               # Bootstrap, Config, Security (CSRF, Input), Session
+  Repository/         # Data access (CSV Album/Queue, JSON Settings)
+  Service/            # Business logic (Elo, Metadata, Import, Stats, AI, Duplicates)
+  Utils/              # HTTP client, Subsonic client, CSV helpers
+templates/
+  partials/           # header.php, footer.php
+  *.php               # One template per page view
+includes/
+  autoload.php        # Simple PSR-4 autoloader
+  config.php          # Minimal bootstrap (session + autoload)
+public entry points:  # index.php, list.php, stats.php, import.php, queue.php, bootcamp.php, database.php, settings.php, serve_image.php
+```
+
+All pages are thin controllers: they load services, handle the request, and render a template. Views contain no business logic.
+
+---
+
+## 🔒 Security
+
+- **CSRF tokens** on every POST form.
+- **Input validation** via `App\Core\Security` helpers.
+- **Image proxy** (`serve_image.php`) validates filenames with strict regex (`album_<md5>.jpg`).
+- **API keys** stored in `data/settings.json` (ensure this path is not web-accessible in production).
+
+---
+
 ## 🧪 Dev: performance logging (optional)
 
 Enable lightweight request timing logs:

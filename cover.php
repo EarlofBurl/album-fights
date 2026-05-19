@@ -1,5 +1,9 @@
 <?php
+declare(strict_types=1);
+
 require_once __DIR__ . '/includes/config.php';
+
+use App\Core\Config;
 
 $file = basename((string)($_GET['file'] ?? ''));
 
@@ -8,7 +12,7 @@ if ($file === '' || !preg_match('/^[a-zA-Z0-9._-]+$/', $file)) {
     exit('Not found');
 }
 
-$path = DIR_CACHE . $file;
+$path = Config::get()->getCacheDir() . $file;
 
 if (!is_file($path)) {
     http_response_code(404);

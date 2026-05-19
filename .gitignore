@@ -3,6 +3,7 @@ data/*
 cache/*
 node_modules/
 dist/
+backup/
 
 # Keep the folders themselves in the repo, just not their contents
 !data/.gitkeep
