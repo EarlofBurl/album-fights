@@ -22,6 +22,10 @@ $reviewText = '';
 $albums     = $albumRepo->loadElo();
 $total      = count($albums);
 
+if (!isset($_SESSION['recent_albums'])) {
+    $_SESSION['recent_albums'] = [];
+}
+
 // Process POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     Security::requirePost();
@@ -42,8 +46,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $scoreA = Security::getFloat($_POST, 'scoreA');
 
         if (isset($albums[$idxA], $albums[$idxB])) {
-            unset($_SESSION['keep_artist'], $_SESSION['keep_album']);
-
             if ($scoreA == 1.0) {
                 $_SESSION['recent_picks'][] = $albums[$idxA]['Artist'] . ' - ' . $albums[$idxA]['Album'];
             } elseif ($scoreA == 0.0) {
@@ -57,6 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
             [$albums[$idxA], $albums[$idxB]] = $eloService->calculateResult($albums[$idxA], $albums[$idxB], $scoreA);
             $albumRepo->saveElo($albums);
+
+            $_SESSION['recent_albums'][] = $idxA;
+            $_SESSION['recent_albums'][] = $idxB;
+            if (count($_SESSION['recent_albums']) > 20) {
+                $_SESSION['recent_albums'] = array_slice($_SESSION['recent_albums'], -20);
+            }
+
             $_SESSION['duel_count']++;
 
             if ($_SESSION['duel_count'] > 0 && $_SESSION['duel_count'] % 25 === 0) {
@@ -70,6 +79,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if (($action === 'queue' || $action === 'delete') && isset($_POST['targetIdx'])) {
         $targetIdx = Security::getInt($_POST, 'targetIdx');
         if (isset($albums[$targetIdx])) {
+            // Remember both albums from the current duel before clearing it
+            if (isset($_SESSION['current_duel'])) {
+                $_SESSION['recent_albums'][] = $_SESSION['current_duel']['idxA'];
+                $_SESSION['recent_albums'][] = $_SESSION['current_duel']['idxB'];
+                if (count($_SESSION['recent_albums']) > 20) {
+                    $_SESSION['recent_albums'] = array_slice($_SESSION['recent_albums'], -20);
+                }
+            }
+
             if ($action === 'queue') {
                 $row = $albums[$targetIdx];
                 $albumRepo->moveToQueue(
@@ -85,13 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             array_splice($albums, $targetIdx, 1);
             $albumRepo->saveElo($albums);
         }
-
-        $keepArtist = Security::getString($_POST, 'survivorArtist');
-        $keepAlbum  = Security::getString($_POST, 'survivorAlbum');
-        if ($keepArtist !== '' && $keepAlbum !== '') {
-            $_SESSION['keep_artist'] = $keepArtist;
-            $_SESSION['keep_album']  = $keepAlbum;
-        }
     }
 
     unset($_SESSION['current_duel']);
@@ -106,18 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $idxA = null;
 $idxB = null;
 
-if (isset($_SESSION['keep_artist'], $_SESSION['keep_album'])) {
-    foreach ($albums as $i => $alb) {
-        if ($alb['Artist'] === $_SESSION['keep_artist'] && $alb['Album'] === $_SESSION['keep_album']) {
-            $idxA = $i;
-            break;
-        }
-    }
-    unset($_SESSION['keep_artist'], $_SESSION['keep_album']);
-    unset($_SESSION['current_duel']);
-}
-
-if (isset($_SESSION['current_duel']) && $idxA === null) {
+if (isset($_SESSION['current_duel'])) {
     $savedA = $_SESSION['current_duel']['idxA'];
     $savedB = $_SESSION['current_duel']['idxB'];
     if (isset($albums[$savedA], $albums[$savedB])) {
@@ -138,7 +138,8 @@ if ($total >= 2 && ($idxA === null || $idxB === null)) {
         'random'            => 10,
     ], $settings->getDuelCategoryWeights());
 
-    [$idxA, $idxB] = $eloService->matchmake($albums, $weights);
+    $recentHistory = array_values(array_unique(array_filter(array_map('intval', $_SESSION['recent_albums'] ?? []), fn(int $i): bool => isset($albums[$i]))));
+    [$idxA, $idxB] = $eloService->matchmake($albums, $weights, $recentHistory);
     $_SESSION['current_duel'] = ['idxA' => $idxA, 'idxB' => $idxB];
 }
 

@@ -92,9 +92,10 @@ class EloService
     /**
      * @param list<array<string, mixed>> $albums
      * @param array<string, int> $weights
+     * @param list<int> $recentHistory Original indices of recently seen albums to exclude
      * @return array{0: ?int, 1: ?int}
      */
-    public function matchmake(array $albums, array $weights): array
+    public function matchmake(array $albums, array $weights, array $recentHistory = []): array
     {
         $total = count($albums);
         if ($total < 2) {
@@ -120,7 +121,7 @@ class EloService
             return array_slice($ranked, $start, $actualEnd - $start + 1);
         };
 
-        $pickLeastDueledPair = function (array $subset): ?array {
+        $pickLeastDueledPair = function (array $subset) use ($recentHistory): ?array {
             if (count($subset) < 2) {
                 return null;
             }
@@ -130,13 +131,59 @@ class EloService
                 }
                 return $a['Duels'] <=> $b['Duels'];
             });
-            return [$subset[0]['_OriginalIndex'], $subset[1]['_OriginalIndex']];
+
+            $bottomCount = max(2, (int)ceil(count($subset) * 0.2));
+            $bottomSubset = array_slice($subset, 0, $bottomCount);
+
+            // Build pool of valid albums (not in recent history)
+            $valid = [];
+            foreach ($bottomSubset as $item) {
+                if (!in_array($item['_OriginalIndex'], $recentHistory, true)) {
+                    $valid[] = $item;
+                }
+            }
+
+            // Fallback to full subset if bottom pool is too small
+            if (count($valid) < 2) {
+                $valid = [];
+                foreach ($subset as $item) {
+                    if (!in_array($item['_OriginalIndex'], $recentHistory, true)) {
+                        $valid[] = $item;
+                    }
+                }
+                if (count($valid) < 2) {
+                    return null;
+                }
+            }
+
+            // Pick two random different albums from valid pool
+            $validCount = count($valid);
+            if ($validCount === 2) {
+                return [$valid[0]['_OriginalIndex'], $valid[1]['_OriginalIndex']];
+            }
+
+            $i = random_int(0, $validCount - 1);
+            do {
+                $j = random_int(0, $validCount - 1);
+            } while ($i === $j);
+
+            return [$valid[$i]['_OriginalIndex'], $valid[$j]['_OriginalIndex']];
         };
 
-        $getRandomPair = function () use ($albums): array {
-            $a = array_rand($albums);
+        $getRandomPair = function () use ($albums, $recentHistory): array {
+            $available = [];
+            foreach (array_keys($albums) as $k) {
+                if (!in_array($k, $recentHistory, true)) {
+                    $available[] = $k;
+                }
+            }
+            if (count($available) < 2) {
+                // Fallback: ignore recent history if too few albums left
+                $available = array_keys($albums);
+            }
+            $a = $available[array_rand($available)];
             do {
-                $b = array_rand($albums);
+                $b = $available[array_rand($available)];
             } while ($a === $b);
             return [$a, $b];
         };

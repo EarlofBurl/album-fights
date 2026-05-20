@@ -61,7 +61,7 @@ require __DIR__ . '/partials/header.php';
                 <?= !empty($infoA['year']) ? htmlspecialchars((string)$infoA['year']) . ' • ' : '' ?>
                 <?= !empty($infoA['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoA['genres'], 0, 4))) : 'No genres found' ?>
             </div>
-            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round((float)$albumA['Elo']) ?> | Plays: <?= (int)$albumA['Playcount'] ?> | W/L: <?= (int)($albumA['Wins'] ?? 0) ?>/<?= (int)($albumA['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($albumA['Wins'] ?? 0), (int)($albumA['Losses'] ?? 0))) ?>)</p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round((float)$albumA['Elo']) ?> | Plays: <?= (int)$albumA['Playcount'] ?> | Duels: <?= (int)$albumA['Duels'] ?> | W/L: <?= (int)($albumA['Wins'] ?? 0) ?>/<?= (int)($albumA['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($albumA['Wins'] ?? 0), (int)($albumA['Losses'] ?? 0))) ?>)</p>
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoA['local_image'])): ?>
                     <a href="<?= htmlspecialchars($metaService->getAlbumExternalUrl((string)$albumA['Artist'], (string)$albumA['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
@@ -88,16 +88,12 @@ require __DIR__ . '/partials/header.php';
                     <?= $csrfField ?>
                     <input type="hidden" name="action" value="queue">
                     <input type="hidden" name="targetIdx" value="<?= (int)$albumA['OriginalIndex'] ?>">
-                    <input type="hidden" name="survivorArtist" value="<?= htmlspecialchars((string)$albumB['Artist']) ?>">
-                    <input type="hidden" name="survivorAlbum" value="<?= htmlspecialchars((string)$albumB['Album']) ?>">
                     <button type="submit" class="btn-small btn-queue" style="width: 100%;">🎧 To Queue</button>
                 </form>
                 <form method="POST" style="flex:1;" onsubmit="return confirm('Do you want to delete this album forever?');">
                     <?= $csrfField ?>
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="targetIdx" value="<?= (int)$albumA['OriginalIndex'] ?>">
-                    <input type="hidden" name="survivorArtist" value="<?= htmlspecialchars((string)$albumB['Artist']) ?>">
-                    <input type="hidden" name="survivorAlbum" value="<?= htmlspecialchars((string)$albumB['Album']) ?>">
                     <button type="submit" class="btn-small btn-delete" style="width: 100%;">🗑️ Delete</button>
                 </form>
             </div>
@@ -129,7 +125,7 @@ require __DIR__ . '/partials/header.php';
                 <?= !empty($infoB['year']) ? htmlspecialchars((string)$infoB['year']) . ' • ' : '' ?>
                 <?= !empty($infoB['genres']) ? htmlspecialchars(implode(' • ', array_slice($infoB['genres'], 0, 4))) : 'No genres found' ?>
             </div>
-            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round((float)$albumB['Elo']) ?> | Plays: <?= (int)$albumB['Playcount'] ?> | W/L: <?= (int)($albumB['Wins'] ?? 0) ?>/<?= (int)($albumB['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($albumB['Wins'] ?? 0), (int)($albumB['Losses'] ?? 0))) ?>)</p>
+            <p style="font-size: 0.9rem; margin-top: 0; color: var(--text-muted);">Elo: <?= round((float)$albumB['Elo']) ?> | Plays: <?= (int)$albumB['Playcount'] ?> | Duels: <?= (int)$albumB['Duels'] ?> | W/L: <?= (int)($albumB['Wins'] ?? 0) ?>/<?= (int)($albumB['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($albumB['Wins'] ?? 0), (int)($albumB['Losses'] ?? 0))) ?>)</p>
             <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center; margin: 15px 0;">
                 <?php if (!empty($infoB['local_image'])): ?>
                     <a href="<?= htmlspecialchars($metaService->getAlbumExternalUrl((string)$albumB['Artist'], (string)$albumB['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="display: inline-block;">
@@ -156,16 +152,12 @@ require __DIR__ . '/partials/header.php';
                     <?= $csrfField ?>
                     <input type="hidden" name="action" value="queue">
                     <input type="hidden" name="targetIdx" value="<?= (int)$albumB['OriginalIndex'] ?>">
-                    <input type="hidden" name="survivorArtist" value="<?= htmlspecialchars((string)$albumA['Artist']) ?>">
-                    <input type="hidden" name="survivorAlbum" value="<?= htmlspecialchars((string)$albumA['Album']) ?>">
                     <button type="submit" class="btn-small btn-queue" style="width: 100%;">🎧 To Queue</button>
                 </form>
                 <form method="POST" style="flex:1;" onsubmit="return confirm('Do you want to delete this album forever?');">
                     <?= $csrfField ?>
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="targetIdx" value="<?= (int)$albumB['OriginalIndex'] ?>">
-                    <input type="hidden" name="survivorArtist" value="<?= htmlspecialchars((string)$albumA['Artist']) ?>">
-                    <input type="hidden" name="survivorAlbum" value="<?= htmlspecialchars((string)$albumA['Album']) ?>">
                     <button type="submit" class="btn-small btn-delete" style="width: 100%;">🗑️ Delete</button>
                 </form>
             </div>

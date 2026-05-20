@@ -116,7 +116,7 @@ require __DIR__ . '/partials/header.php';
                 <?php foreach ($stats['hiddenGems'] as $a): ?>
                     <li style="margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;">
                         <strong style="color: #fff;"><?= htmlspecialchars((string)$a['Artist']) ?></strong> - <?= htmlspecialchars((string)$a['Album']) ?><br>
-                        <small>Elo: <?= round((float)$a['Elo']) ?> | Plays: <?= (int)$a['Playcount'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($a['Wins'] ?? 0), (int)($a['Losses'] ?? 0))) ?>)</small>
+                        <small>Elo: <?= round((float)$a['Elo']) ?> | Plays: <?= (int)$a['Playcount'] ?> | Duels: <?= (int)$a['Duels'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($a['Wins'] ?? 0), (int)($a['Losses'] ?? 0))) ?>)</small>
                     </li>
                 <?php endforeach; ?>
             </ul>
@@ -129,7 +129,7 @@ require __DIR__ . '/partials/header.php';
                 <?php foreach ($stats['disappointments'] as $a): ?>
                     <li style="margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 5px;">
                         <strong style="color: #fff;"><?= htmlspecialchars((string)$a['Artist']) ?></strong> - <?= htmlspecialchars((string)$a['Album']) ?><br>
-                        <small>Elo: <?= round((float)$a['Elo']) ?> | Plays: <?= (int)$a['Playcount'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($a['Wins'] ?? 0), (int)($a['Losses'] ?? 0))) ?>)</small>
+                        <small>Elo: <?= round((float)$a['Elo']) ?> | Plays: <?= (int)$a['Playcount'] ?> | Duels: <?= (int)$a['Duels'] ?> | W/L: <?= (int)($a['Wins'] ?? 0) ?>/<?= (int)($a['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($a['Wins'] ?? 0), (int)($a['Losses'] ?? 0))) ?>)</small>
                     </li>
                 <?php endforeach; ?>
             </ul>

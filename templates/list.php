@@ -61,7 +61,7 @@ require __DIR__ . '/partials/header.php';
                     <?php endif; ?>
                     <div class="top25-title"><a href="<?= htmlspecialchars($meta->getAlbumExternalUrl((string)$album['Artist'], (string)$album['Album'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars((string)$album['Album']) ?></a></div>
                     <div class="top25-artist"><a href="<?= htmlspecialchars($meta->getArtistExternalUrl((string)$album['Artist'])) ?>" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;"><?= htmlspecialchars((string)$album['Artist']) ?></a></div>
-                    <div class="top25-artist">W/L: <?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($album['Wins'] ?? 0), (int)($album['Losses'] ?? 0))) ?>)</div>
+                    <div class="top25-artist">Duels: <?= (int)$album['Duels'] ?> | W/L: <?= (int)($album['Wins'] ?? 0) ?>/<?= (int)($album['Losses'] ?? 0) ?> (<?= htmlspecialchars(CsvHelper::winLossRatio((int)($album['Wins'] ?? 0), (int)($album['Losses'] ?? 0))) ?>)</div>
                 </div>
             <?php endforeach; ?>
         </div>
