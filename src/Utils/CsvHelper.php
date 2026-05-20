@@ -138,7 +138,7 @@ class CsvHelper
             'Playcount' => (int)($row['Playcount'] ?? 0),
             'Wins'      => $wins,
             'Losses'    => $losses,
-            'Ratio'     => $row['Ratio'] ?? self::winLossRatio($wins, $losses),
+            'Ratio'     => self::winLossRatio($wins, $losses),
         ];
     }
 

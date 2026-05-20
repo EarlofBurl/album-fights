@@ -160,10 +160,13 @@ class MetadataService
             $result['local_image'] = $imgUrl;
         }
 
-        $result['genres'] = $this->applyTagBlacklist($result['genres'] ?? []);
+        // Store unfiltered genres in cache so blacklist changes can be applied later
+        $result['genres'] = array_values(array_unique($result['genres'] ?? []));
         $result['tracks'] = array_values(array_unique(array_filter($result['tracks'] ?? [])));
         file_put_contents($jsonFile, json_encode($result));
 
+        // Apply blacklist only for the runtime output, not for persistence
+        $result['genres'] = $this->applyTagBlacklist($result['genres']);
         return $result;
     }
 

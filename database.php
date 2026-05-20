@@ -35,11 +35,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $settings->setTagBlacklist(array_values(array_unique($tags)));
         $settings->save();
-        $message = '✅ Tag blacklist saved.';
+
+        // Only invalidate the computed stats cache so genre stats refresh on next visit.
+        // Metadata cache files are kept — blacklist is applied at read time.
+        $statsCache = $config->getDataDir() . 'stats_cache.json';
+        if (file_exists($statsCache)) {
+            unlink($statsCache);
+        }
+
+        $message = '✅ Tag blacklist saved. Genre filters will apply immediately on next page load.';
     }
 
     if ($postedAction === 'delete_duplicate') {
-        $deleteIndex = Security::getInt($_POST, 'delete_index', -1);
+        $deleteIndex = isset($_GET['delete_index']) ? Security::getInt($_GET, 'delete_index', -1) : Security::getInt($_POST, 'delete_index', -1);
         if (isset($albums[$deleteIndex])) {
             array_splice($albums, $deleteIndex, 1);
             $albumRepo->saveElo($albums);
@@ -73,7 +81,7 @@ foreach ($blacklist as $tag) {
 }
 
 $tagCounts = [];
-foreach (glob($config->getCacheDir() . '*.json') as $jsonFile) {
+foreach ((array) glob($config->getCacheDir() . '*.json') as $jsonFile) {
     $info = json_decode(file_get_contents($jsonFile), true);
     if (!is_array($info) || !is_array($info['genres'] ?? null)) {
         continue;
