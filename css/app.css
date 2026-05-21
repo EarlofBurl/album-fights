@@ -238,3 +238,179 @@ input[type="file"].form-control { padding: 9px; }
 .top25-title { margin-top: 8px; font-weight: 700; font-size: 0.92rem; line-height: 1.25; }
 .top25-artist { color: var(--text-muted); font-size: 0.82rem; line-height: 1.2; margin-top: 3px; }
 @media (max-width: 760px) { .top25-card.top3 { grid-column: span 1; min-height: 210px; } }
+
+/* Duel Weight Sliders Modern Styling */
+.weight-presets-container {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.btn-preset {
+    background: #252525;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+.btn-preset:hover {
+    background: #333;
+    border-color: var(--accent);
+}
+.btn-preset.active {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+}
+
+.weight-visualizer-bar {
+    display: flex;
+    height: 20px;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #222;
+    margin-bottom: 25px;
+    border: 1px solid var(--border);
+}
+.weight-visualizer-segment {
+    height: 100%;
+    transition: width 0.25s ease-out, background-color 0.25s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    color: #000;
+    font-weight: bold;
+    overflow: hidden;
+    white-space: nowrap;
+    text-shadow: 0 0 1px rgba(255,255,255,0.2);
+}
+
+.duel-weight-row {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid transparent;
+    padding: 14px 18px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+.duel-weight-row:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: #3d3d3d;
+}
+.duel-weight-row.locked {
+    background: rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.02);
+    opacity: 0.55;
+}
+.duel-weight-row.locked label,
+.duel-weight-row.locked .weight-number-display {
+    color: var(--text-muted);
+}
+
+/* Range input customization */
+.duel-weight-row input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #2a2a2a;
+    outline: none;
+}
+.duel-weight-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid #1e1e1e;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s ease, background-color 0.2s ease;
+}
+.duel-weight-row input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.25);
+}
+.duel-weight-row input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid #1e1e1e;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s ease, background-color 0.2s ease;
+}
+.duel-weight-row input[type="range"]::-moz-range-thumb:hover {
+    transform: scale(1.25);
+}
+.duel-weight-row.locked input[type="range"] {
+    pointer-events: none;
+}
+.duel-weight-row.locked input[type="range"]::-webkit-slider-thumb {
+    background: #555 !important;
+}
+.duel-weight-row.locked input[type="range"]::-moz-range-thumb {
+    background: #555 !important;
+}
+
+/* Adjust/fine-tune buttons */
+.weight-adjust-btn {
+    width: 28px;
+    height: 28px;
+    background: #2a2a2a;
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    border-radius: 50%;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.weight-adjust-btn:hover {
+    background: #3d3d3d;
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.weight-adjust-btn:active {
+    transform: scale(0.9);
+}
+.duel-weight-row.locked .weight-adjust-btn {
+    pointer-events: none;
+    opacity: 0.3;
+}
+
+/* Lock Padlock Toggle */
+.weight-lock-toggle {
+    width: 34px;
+    height: 34px;
+    background: #252525;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+.weight-lock-toggle:hover {
+    background: #333;
+    border-color: var(--text-muted);
+}
+.weight-lock-toggle.active {
+    background: rgba(230, 126, 34, 0.15);
+    border-color: #d35400;
+    color: #e67e22;
+}
