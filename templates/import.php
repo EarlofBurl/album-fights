@@ -14,41 +14,6 @@ use App\Service\ImportService;
 require __DIR__ . '/partials/header.php';
 ?>
 
-<style>
-    .import-container { max-width: 1100px; margin: 0 auto; padding: 20px 0; }
-    .import-card { background: var(--card-bg, #222); border: 1px solid var(--border, #333); border-radius: 12px; padding: 24px; margin-bottom: 24px; }
-    .import-card.sync-card { border-left: 5px solid var(--accent, #b088ff); }
-    .import-card h3 { margin-top: 0; margin-bottom: 8px; }
-    .import-card p { font-size: 0.9rem; color: var(--text-muted, #999); margin-top: 0; margin-bottom: 20px; }
-    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-bottom: 30px; align-items: stretch; }
-    .grid-2 .import-card { display: flex; flex-direction: column; margin-bottom: 0; }
-    .grid-2 .import-card form { flex: 1; display: flex; flex-direction: column; }
-    .grid-2 .import-card .btn-full { margin-top: auto; }
-    .flex-row { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
-    .form-group { margin-bottom: 15px; }
-    .form-control { width: 100%; padding: 12px; background: #111; color: #fff; border: 1px solid #333; border-radius: 6px; font-size: 1rem; box-sizing: border-box; }
-    .form-control:focus { border-color: var(--accent, #b088ff); outline: none; }
-    input[type="file"].form-control { padding: 9px; }
-    .btn { padding: 12px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; text-align: center; font-size: 0.95rem; }
-    .btn:hover { opacity: 0.8; }
-    .btn-accent { background: var(--accent, #b088ff); color: #000; }
-    .btn-dark { background: #333; color: #fff; }
-    .btn-success { background: #2ecc71; color: #000; }
-    .btn-full { width: 100%; display: block; }
-    .alert { padding: 15px; border-radius: 8px; margin-bottom: 24px; font-weight: bold; }
-    .alert-success { background: rgba(46, 204, 113, 0.15); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.3); }
-    .alert-error { background: rgba(231, 76, 60, 0.15); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.3); }
-    .alert-info { background: rgba(52, 152, 219, 0.15); color: #3498db; border: 1px solid rgba(52, 152, 219, 0.3); }
-    .table-toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; margin-top: 10px; }
-    .candidates-table { width: 100%; border-collapse: collapse; background: var(--card-bg, #222); border-radius: 8px; overflow: hidden; font-size: 0.95rem; }
-    .candidates-table th, .candidates-table td { padding: 14px; text-align: left; border-bottom: 1px solid var(--border, #333); }
-    .candidates-table th { background: #1a1a1a; font-weight: bold; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; }
-    .candidates-table th.center, .candidates-table td.center { text-align: center; }
-    .candidates-table td.artist { color: var(--accent, #b088ff); font-weight: bold; }
-    .table-actions { display: flex; gap: 10px; justify-content: center; }
-    .table-actions form { margin: 0; }
-</style>
-
 <div class="import-container">
     <h2 style="margin-top: 0;">📥 Import & Maintenance</h2>
     <p style="color: var(--text-muted); margin-bottom: 24px;">

@@ -21,19 +21,6 @@ use App\Utils\CsvHelper;
 require __DIR__ . '/partials/header.php';
 ?>
 
-<style>
-    .top25-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; margin: 12px 0 30px; }
-    .top25-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; min-height: 188px; background: #171717; }
-    .top25-card.top10 { background: rgba(187, 134, 252, 0.15); border-color: rgba(187, 134, 252, 0.45); }
-    .top25-card.top3 { grid-column: span 2; min-height: 290px; background: rgba(187, 134, 252, 0.24); }
-    .top25-rank { display: inline-block; font-size: 0.78rem; border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; padding: 2px 8px; margin-bottom: 8px; color: var(--text-muted); }
-    .top25-cover { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: #252525; }
-    .top25-cover-placeholder { width: 100%; aspect-ratio: 1 / 1; border-radius: 8px; background: linear-gradient(135deg, #2a2a2a, #1c1c1c); color: var(--text-muted); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.78rem; padding: 8px; box-sizing: border-box; }
-    .top25-title { margin-top: 8px; font-weight: 700; font-size: 0.92rem; line-height: 1.25; }
-    .top25-artist { color: var(--text-muted); font-size: 0.82rem; line-height: 1.2; margin-top: 3px; }
-    @media (max-width: 760px) { .top25-card.top3 { grid-column: span 1; min-height: 210px; } }
-</style>
-
 <div style="width: 100%; max-width: 1400px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 10px; flex-wrap: wrap;">
         <h2 style="margin: 0;">The List</h2>
